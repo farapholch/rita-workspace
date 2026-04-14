@@ -45,7 +45,7 @@ const sv: Translations = {
   manageDrawings: 'Hantera arbetsyta...',
 
   // Dialog
-  dialogTitle: 'Min Arbetsyta',
+  dialogTitle: 'Min Rita Arbetsyta',
   close: 'Stäng',
   open: 'Öppna',
   rename: 'Byt namn',

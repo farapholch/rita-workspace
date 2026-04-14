@@ -32,6 +32,11 @@ export interface DrawingsDialogProps {
    * Falls back to English if not supported
    */
   lang?: string;
+
+  /**
+   * Optional thumbnail renderer for each drawing
+   */
+  renderThumbnail?: (drawing: Drawing) => React.ReactNode;
 }
 
 /**
@@ -42,6 +47,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   onClose,
   onDrawingSelect,
   lang,
+  renderThumbnail,
 }) => {
   const {
     drawings,
@@ -220,6 +226,23 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                       : 'transparent',
                 }}
               >
+                {/* Thumbnail */}
+                {renderThumbnail && (
+                  <div style={{
+                    width: '80px',
+                    height: '60px',
+                    flexShrink: 0,
+                    borderRadius: '4px',
+                    overflow: 'hidden',
+                    border: '1px solid var(--default-border-color, #e0e0e0)',
+                    backgroundColor: '#fff',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                  }}>
+                    {renderThumbnail(drawing)}
+                  </div>
+                )}
                 {/* Drawing info */}
                 <div style={{ flex: 1, minWidth: 0 }}>
                   {editingId === drawing.id ? (
@@ -473,20 +496,6 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               📤 {t.exportWorkspace}
             </button>
           </div>
-          <button
-            onClick={onClose}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px',
-              backgroundColor: 'transparent',
-              border: '1px solid var(--default-border-color, #ccc)',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              color: 'inherit',
-            }}
-          >
-            {t.close}
-          </button>
         </div>
       </div>
     </div>
