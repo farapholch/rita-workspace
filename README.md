@@ -1,6 +1,6 @@
 # Rita Workspace
 
-Multi-drawing workspace feature for Rita (Trafikverket's Excalidraw fork based on B310-digital/excalidraw).
+Multi-drawing workspace feature for Rita (Excalidraw fork based on B310-digital/excalidraw).
 
 ## Problem
 
@@ -97,7 +97,7 @@ git merge workspace/main
 
 - **B310 Excalidraw Fork:** https://github.com/b310-digital/excalidraw
 - **Original Excalidraw:** https://github.com/excalidraw/excalidraw
-- **Rita (TRV):** Internal deployment at Trafikverket
+- **Rita:** Your local Rita deployment
 
 ## License
 
