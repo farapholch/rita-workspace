@@ -222,11 +222,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       if (files) {
         updateData.files = files;
       }
-      const updated = await updateDrawing(activeDrawing.id, updateData);
-      if (updated) {
-        setActiveDrawing(updated);
-        setDrawings((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
-      }
+      await updateDrawing(activeDrawing.id, updateData);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save drawing');
     }
