@@ -31,6 +31,8 @@ export interface Translations {
   // Export/Import
   exportWorkspace: string;
   importWorkspace: string;
+  exportDrawing: string;
+  importDrawing: string;
 
   // Shortcuts
   shortcutNewDrawing: string;
@@ -59,8 +61,10 @@ const sv: Translations = {
   confirmDelete: 'Vill du ta bort denna ritning?',
 
   // Export/Import
-  exportWorkspace: 'Exportera',
-  importWorkspace: 'Importera',
+  exportWorkspace: 'Exportera arbetsyta',
+  importWorkspace: 'Importera arbetsyta',
+  exportDrawing: 'Spara som .excalidraw',
+  importDrawing: 'Öppna .excalidraw',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
@@ -89,8 +93,10 @@ const en: Translations = {
   confirmDelete: 'Do you want to delete this drawing?',
 
   // Export/Import
-  exportWorkspace: 'Export',
-  importWorkspace: 'Import',
+  exportWorkspace: 'Export workspace',
+  importWorkspace: 'Import workspace',
+  exportDrawing: 'Save as .excalidraw',
+  importDrawing: 'Open .excalidraw',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',

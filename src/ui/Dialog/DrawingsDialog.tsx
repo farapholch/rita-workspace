@@ -52,6 +52,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     removeDrawing,
     exportWorkspace,
     importWorkspace,
+    exportDrawingAsExcalidraw,
+    importExcalidrawFile,
     t: contextT,
     lang: contextLang,
   } = useWorkspace();
@@ -163,7 +165,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           }}
         >
           <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
-            {t.dialogTitle} ({drawings.length})
+            {t.dialogTitle}
           </h2>
           <button
             onClick={onClose}
@@ -348,6 +350,21 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                         {t.open}
                       </button>
                       <button
+                        onClick={() => exportDrawingAsExcalidraw(drawing.id)}
+                        style={{
+                          padding: '6px 12px',
+                          fontSize: '12px',
+                          backgroundColor: 'transparent',
+                          border: '1px solid var(--default-border-color, #ccc)',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          color: 'inherit',
+                        }}
+                        title={t.exportDrawing}
+                      >
+                        💾
+                      </button>
+                      <button
                         onClick={() => handleStartEdit(drawing)}
                         style={{
                           padding: '6px 12px',
@@ -411,6 +428,20 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               }}
             >
               + {t.newDrawing}
+            </button>
+            <button
+              onClick={importExcalidrawFile}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: 'transparent',
+                border: '1px solid var(--default-border-color, #ccc)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: 'inherit',
+              }}
+            >
+              📂 {t.importDrawing}
             </button>
             <button
               onClick={importWorkspace}

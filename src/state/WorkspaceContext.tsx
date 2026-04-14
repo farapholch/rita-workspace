@@ -41,6 +41,8 @@ export interface WorkspaceContextValue {
   // Export/Import
   exportWorkspace: () => Promise<void>;
   importWorkspace: () => Promise<void>;
+  exportDrawingAsExcalidraw: (id: string) => Promise<void>;
+  importExcalidrawFile: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -322,6 +324,83 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [workspace, t]);
 
+  const exportDrawingAsExcalidraw = useCallback(async (id: string): Promise<void> => {
+    try {
+      const drawing = drawings.find((d) => d.id === id) || await getDrawing(id);
+      if (!drawing) return;
+
+      const excalidrawData = {
+        type: 'excalidraw',
+        version: 2,
+        source: 'rita-workspace',
+        elements: drawing.elements || [],
+        appState: {
+          viewBackgroundColor: '#ffffff',
+          ...(drawing.appState || {}),
+        },
+        files: drawing.files || {},
+      };
+
+      const blob = new Blob([JSON.stringify(excalidrawData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `${drawing.name || 'ritning'}.excalidraw`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export drawing');
+    }
+  }, [drawings]);
+
+  const importExcalidrawFile = useCallback(async (): Promise<void> => {
+    if (!workspace) return;
+
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.excalidraw,.excalidraw.json,.json';
+      input.multiple = true;
+
+      const files = await new Promise<FileList | null>((resolve) => {
+        input.onchange = () => resolve(input.files);
+        input.click();
+      });
+
+      if (!files || files.length === 0) return;
+
+      for (const file of Array.from(files)) {
+        const text = await file.text();
+        const data = JSON.parse(text);
+
+        // Validate it looks like an Excalidraw file
+        if (!data.elements && !data.type) {
+          continue;
+        }
+
+        const name = file.name.replace(/\.(excalidraw|json)$/gi, '') || t.newDrawing;
+        const drawing = await createDrawing(name);
+        await updateDrawing(drawing.id, {
+          elements: data.elements || [],
+          appState: data.appState || {},
+          files: data.files || {},
+        });
+        await addDrawingToWorkspace(workspace.id, drawing.id);
+      }
+
+      // Refresh state
+      const allDrawings = await getAllDrawings();
+      const ws = await getOrCreateDefaultWorkspace();
+      const wsDrawings = allDrawings.filter((dr) => ws.drawingIds.includes(dr.id));
+      setWorkspace(ws);
+      setDrawings(wsDrawings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import drawing');
+    }
+  }, [workspace, t]);
+
   const value: WorkspaceContextValue = {
     workspace,
     drawings,
@@ -339,6 +418,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     saveDrawingById,
     exportWorkspace,
     importWorkspace,
+    exportDrawingAsExcalidraw,
+    importExcalidrawFile,
   };
 
   return (
