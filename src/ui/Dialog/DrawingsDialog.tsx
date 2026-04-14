@@ -50,6 +50,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     createNewDrawing,
     renameDrawing,
     removeDrawing,
+    exportWorkspace,
+    importWorkspace,
     t: contextT,
     lang: contextLang,
   } = useWorkspace();
@@ -65,16 +67,14 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const handleSelect = useCallback(async (drawing: Drawing) => {
     await switchDrawing(drawing.id);
     onDrawingSelect?.(drawing);
-    onClose();
-  }, [switchDrawing, onDrawingSelect, onClose]);
+  }, [switchDrawing, onDrawingSelect]);
 
   const handleCreate = useCallback(async () => {
     const newDrawing = await createNewDrawing();
     if (newDrawing) {
       onDrawingSelect?.(newDrawing);
-      onClose();
     }
-  }, [createNewDrawing, onDrawingSelect, onClose]);
+  }, [createNewDrawing, onDrawingSelect]);
 
   const handleStartEdit = useCallback((drawing: Drawing) => {
     setEditingId(drawing.id);
@@ -396,21 +396,52 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             alignItems: 'center',
           }}
         >
-          <button
-            onClick={handleCreate}
-            style={{
-              padding: '10px 20px',
-              fontSize: '14px',
-              backgroundColor: 'var(--color-primary, #6c63ff)',
-              color: '#fff',
-              border: 'none',
-              borderRadius: '6px',
-              cursor: 'pointer',
-              fontWeight: 500,
-            }}
-          >
-            + {t.newDrawing}
-          </button>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={handleCreate}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: 'var(--color-primary, #6c63ff)',
+                color: '#fff',
+                border: 'none',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontWeight: 500,
+              }}
+            >
+              + {t.newDrawing}
+            </button>
+            <button
+              onClick={importWorkspace}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: 'transparent',
+                border: '1px solid var(--default-border-color, #ccc)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: 'inherit',
+              }}
+            >
+              📥 {t.importWorkspace}
+            </button>
+            <button
+              onClick={exportWorkspace}
+              style={{
+                padding: '10px 20px',
+                fontSize: '14px',
+                backgroundColor: 'transparent',
+                border: '1px solid var(--default-border-color, #ccc)',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                color: 'inherit',
+              }}
+              disabled={drawings.length === 0}
+            >
+              📤 {t.exportWorkspace}
+            </button>
+          </div>
           <button
             onClick={onClose}
             style={{

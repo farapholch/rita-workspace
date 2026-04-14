@@ -36,6 +36,10 @@ export interface WorkspaceContextValue {
 
   // For Excalidraw integration
   saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
+
+  // Export/Import
+  exportWorkspace: () => Promise<void>;
+  importWorkspace: () => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -228,6 +232,79 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [activeDrawing]);
 
+  const exportWorkspace = useCallback(async (): Promise<void> => {
+    try {
+      const exportData = {
+        version: 1,
+        name: workspace?.name || 'Min Arbetsyta',
+        exportedAt: new Date().toISOString(),
+        drawings: drawings.map((d) => ({
+          name: d.name,
+          elements: d.elements,
+          appState: d.appState,
+          files: d.files,
+          createdAt: d.createdAt,
+          updatedAt: d.updatedAt,
+        })),
+      };
+
+      const blob = new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `arbetsyta-${new Date().toISOString().slice(0, 10)}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export workspace');
+    }
+  }, [workspace, drawings]);
+
+  const importWorkspace = useCallback(async (): Promise<void> => {
+    if (!workspace) return;
+
+    try {
+      const input = document.createElement('input');
+      input.type = 'file';
+      input.accept = '.json';
+
+      const file = await new Promise<File | null>((resolve) => {
+        input.onchange = () => resolve(input.files?.[0] || null);
+        input.click();
+      });
+
+      if (!file) return;
+
+      const text = await file.text();
+      const data = JSON.parse(text);
+
+      if (!data.version || !Array.isArray(data.drawings)) {
+        throw new Error('Invalid workspace file');
+      }
+
+      for (const d of data.drawings) {
+        const drawing = await createDrawing(d.name || t.newDrawing);
+        await updateDrawing(drawing.id, {
+          elements: d.elements || [],
+          appState: d.appState || {},
+          files: d.files || {},
+        });
+        await addDrawingToWorkspace(workspace.id, drawing.id);
+      }
+
+      // Refresh state
+      const allDrawings = await getAllDrawings();
+      const ws = await getOrCreateDefaultWorkspace();
+      const wsDrawings = allDrawings.filter((dr) => ws.drawingIds.includes(dr.id));
+      setWorkspace(ws);
+      setDrawings(wsDrawings);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to import workspace');
+    }
+  }, [workspace, t]);
+
   const value: WorkspaceContextValue = {
     workspace,
     drawings,
@@ -242,6 +319,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     removeDrawing,
     duplicateCurrentDrawing,
     saveCurrentDrawing,
+    exportWorkspace,
+    importWorkspace,
   };
 
   return (

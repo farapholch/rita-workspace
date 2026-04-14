@@ -1,6 +1,6 @@
 {
   "name": "rita-workspace",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "description": "Multi-drawing workspace feature for Rita (Excalidraw fork)",
   "main": "dist/index.js",
   "module": "dist/index.mjs",

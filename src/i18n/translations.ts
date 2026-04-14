@@ -28,6 +28,10 @@ export interface Translations {
   modified: string;
   confirmDelete: string;
 
+  // Export/Import
+  exportWorkspace: string;
+  importWorkspace: string;
+
   // Shortcuts
   shortcutNewDrawing: string;
 }
@@ -39,7 +43,7 @@ const sv: Translations = {
   manageDrawings: 'Hantera arbetsyta...',
 
   // Dialog
-  dialogTitle: 'Arbetsyta',
+  dialogTitle: 'Min Arbetsyta',
   close: 'Stäng',
   open: 'Öppna',
   rename: 'Byt namn',
@@ -53,6 +57,10 @@ const sv: Translations = {
   clickNewToStart: 'Klicka "Ny ritning" för att börja.',
   modified: 'Ändrad',
   confirmDelete: 'Vill du ta bort denna ritning?',
+
+  // Export/Import
+  exportWorkspace: 'Exportera',
+  importWorkspace: 'Importera',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
@@ -79,6 +87,10 @@ const en: Translations = {
   clickNewToStart: 'Click "New drawing" to start.',
   modified: 'Modified',
   confirmDelete: 'Do you want to delete this drawing?',
+
+  // Export/Import
+  exportWorkspace: 'Export',
+  importWorkspace: 'Import',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
