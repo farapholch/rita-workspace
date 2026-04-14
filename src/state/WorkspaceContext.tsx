@@ -13,6 +13,7 @@ import {
   removeDrawingFromWorkspace,
   setActiveDrawing as setActiveDrawingInStore,
 } from '../storage';
+import { getTranslations, type Translations } from '../i18n';
 
 export interface WorkspaceContextValue {
   // State
@@ -21,6 +22,10 @@ export interface WorkspaceContextValue {
   activeDrawing: Drawing | null;
   isLoading: boolean;
   error: string | null;
+
+  // Language
+  lang: string;
+  t: Translations;
 
   // Actions
   createNewDrawing: (name?: string) => Promise<Drawing | null>;
@@ -43,16 +48,38 @@ export function useWorkspace(): WorkspaceContextValue {
   return context;
 }
 
-interface WorkspaceProviderProps {
-  children: ReactNode;
+/**
+ * Hook to get current language and translations
+ * Can be used by any component within WorkspaceProvider
+ */
+export function useWorkspaceLang(): { lang: string; t: Translations } {
+  const context = useContext(WorkspaceContext);
+  if (!context) {
+    // Return English as fallback if used outside provider
+    return { lang: 'en', t: getTranslations('en') };
+  }
+  return { lang: context.lang, t: context.t };
 }
 
-export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
+interface WorkspaceProviderProps {
+  children: ReactNode;
+  /**
+   * Language code (e.g., 'sv', 'en', 'sv-SE')
+   * Pass Excalidraw's langCode here to sync languages
+   * Falls back to English if not supported
+   */
+  lang?: string;
+}
+
+export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [activeDrawing, setActiveDrawing] = useState<Drawing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Get translations based on lang prop
+  const t = getTranslations(lang);
 
   // Initialize workspace on mount
   useEffect(() => {
@@ -84,7 +111,9 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     if (!workspace) return null;
 
     try {
-      const drawing = await createDrawing(name || `Ritning ${drawings.length + 1}`);
+      // Use translated default name
+      const defaultName = `${t.newDrawing} ${drawings.length + 1}`;
+      const drawing = await createDrawing(name || defaultName);
       await addDrawingToWorkspace(workspace.id, drawing.id);
       await setActiveDrawingInStore(workspace.id, drawing.id);
 
@@ -101,7 +130,7 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
       setError(err instanceof Error ? err.message : 'Failed to create drawing');
       return null;
     }
-  }, [workspace, drawings.length]);
+  }, [workspace, drawings.length, t]);
 
   const switchDrawing = useCallback(async (id: string): Promise<void> => {
     if (!workspace) return;
@@ -197,6 +226,8 @@ export function WorkspaceProvider({ children }: WorkspaceProviderProps) {
     activeDrawing,
     isLoading,
     error,
+    lang,
+    t,
     createNewDrawing,
     switchDrawing,
     renameDrawing,

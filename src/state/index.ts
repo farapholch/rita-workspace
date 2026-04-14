@@ -1,2 +1,2 @@
-export { WorkspaceProvider, useWorkspace } from './WorkspaceContext';
+export { WorkspaceProvider, useWorkspace, useWorkspaceLang } from './WorkspaceContext';
 export type { WorkspaceContextValue } from './WorkspaceContext';

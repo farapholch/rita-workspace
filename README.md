@@ -2,103 +2,231 @@
 
 Multi-drawing workspace feature for Rita (Excalidraw fork based on B310-digital/excalidraw).
 
-## Problem
-
-Currently Rita only supports one active drawing at a time. Users need to manually export/import drawings to switch between them.
-
-## Solution
-
-Add a workspace feature that allows users to:
-- Create multiple drawings within a single workspace
-- Switch between drawings with a simple sidebar/tab GUI
-- Store all drawings locally in the browser (IndexedDB/localStorage)
-- Name and organize drawings
-
 ## Features
 
-### MVP (v1.0)
-- [ ] Sidebar with list of drawings
-- [ ] Create new drawing button
-- [ ] Switch between drawings (preserves state)
-- [ ] Rename drawings
-- [ ] Delete drawings
-- [ ] Auto-save to browser storage (IndexedDB)
-- [ ] Import existing .excalidraw files into workspace
+- **Multiple drawings** - Create and manage multiple drawings in one workspace
+- **Menu integration** - Seamlessly integrates with Excalidraw's hamburger menu
+- **Auto-save** - All drawings saved locally in IndexedDB
+- **Rename & delete** - Full drawing management via dialog
+- **i18n support** - Swedish and English with automatic Excalidraw language sync
 
-### Future (v2.0+)
-- [ ] Folders/categories for drawings
-- [ ] Search drawings
-- [ ] Thumbnail previews
-- [ ] Export entire workspace
-- [ ] Cloud sync (optional)
-- [ ] Link/reference between drawings
+## Installation
 
-## Technical Approach
+```bash
+npm install rita-workspace
+# or
+yarn add rita-workspace
+```
 
-### Storage
-- Use IndexedDB for persistent storage (better than localStorage for binary data)
-- Each drawing stored as separate entry with metadata
-- Workspace metadata stored separately
+## Integration Guide
 
-### Data Structure
+Two files need to be modified in the B310/Excalidraw fork:
+
+### 1. `excalidraw-app/App.tsx`
+
+**Add import** (at the top with other imports):
+
+```tsx
+import { WorkspaceProvider } from "rita-workspace";
+```
+
+**Wrap with WorkspaceProvider** (in the `ExcalidrawWrapper` component to access `langCode`):
+
+```tsx
+const ExcalidrawWrapper = () => {
+  const [langCode] = useAppLangCode();  // Excalidraw's language hook
+
+  // ... existing code ...
+
+  return (
+    <WorkspaceProvider lang={langCode}>   {/* <-- Pass langCode here */}
+      <div style={{ height: "100%" }}>
+        <Excalidraw ... />
+      </div>
+    </WorkspaceProvider>
+  );
+};
+```
+
+Or if you prefer wrapping at the app level:
+
+```tsx
+const ExcalidrawApp = () => {
+  return (
+    <TopErrorBoundary>
+      <Provider store={appJotaiStore}>
+        <WorkspaceProvider lang="sv">    {/* <-- Or hardcode language */}
+          <ExcalidrawWrapper />
+        </WorkspaceProvider>
+      </Provider>
+    </TopErrorBoundary>
+  );
+};
+```
+
+### 2. `excalidraw-app/components/AppMainMenu.tsx`
+
+**Add imports** (at the top):
+
+```tsx
+import React, { useState } from "react";  // Add useState
+
+// Add after other imports:
+import { WorkspaceMenuItems, DrawingsDialog } from "rita-workspace";
+```
+
+**Add state and menu items** (inside the component):
+
+```tsx
+export const AppMainMenu: React.FC<{...}> = React.memo((props) => {
+  const [showDrawingsDialog, setShowDrawingsDialog] = useState(false);
+
+  return (
+    <>
+    <MainMenu>
+      <MainMenu.DefaultItems.LoadScene />
+      <MainMenu.DefaultItems.SaveToActiveFile />
+
+      {/* === RITA WORKSPACE === */}
+      <MainMenu.Sub>
+        <MainMenu.Sub.Trigger>📄 Ritningar</MainMenu.Sub.Trigger>
+        <MainMenu.Sub.Content>
+          <WorkspaceMenuItems
+            onManageDrawings={() => setShowDrawingsDialog(true)}
+          />
+        </MainMenu.Sub.Content>
+      </MainMenu.Sub>
+
+      <MainMenu.DefaultItems.Export />
+      {/* ... rest of menu items ... */}
+    </MainMenu>
+
+    <DrawingsDialog
+      open={showDrawingsDialog}
+      onClose={() => setShowDrawingsDialog(false)}
+    />
+    </>
+  );
+});
+```
+
+## Language Support (i18n)
+
+Rita Workspace supports **Swedish** and **English**, with automatic sync to Excalidraw's language setting.
+
+### Automatic Language Sync
+
+Pass Excalidraw's `langCode` to `WorkspaceProvider` - all child components inherit the language automatically:
+
+```tsx
+const [langCode] = useAppLangCode();  // From Excalidraw
+
+<WorkspaceProvider lang={langCode}>
+  {/* All components automatically use the same language */}
+  <WorkspaceMenuItems ... />
+  <DrawingsDialog ... />
+</WorkspaceProvider>
+```
+
+### Manual Override
+
+You can override the language on individual components if needed:
+
+```tsx
+<WorkspaceProvider lang="en">
+  {/* This dialog will be in Swedish despite provider being English */}
+  <DrawingsDialog lang="sv" ... />
+</WorkspaceProvider>
+```
+
+### Supported Languages
+
+| Code | Language |
+|------|----------|
+| `sv`, `sv-SE` | 🇸🇪 Swedish |
+| `en`, `en-US` | 🇬🇧 English (default) |
+
+## Result
+
+After integration, a "📄 Ritningar" (or "📄 Drawings") submenu appears in the hamburger menu:
+
+```
+┌─────────────────────────┐
+│ 📂 Open                 │
+│ 💾 Save                 │
+│ 📄 Ritningar        ▶  │──┐
+│ 📤 Export               │  │  ┌─────────────────────┐
+│ ...                     │  └──│ ✓ Current drawing   │
+└─────────────────────────┘     │   Sketch 2          │
+                                │   Project X         │
+                                │ ─────────────────── │
+                                │ + Ny ritning        │
+                                │ 📄 Hantera...       │
+                                └─────────────────────┘
+```
+
+## API Reference
+
+### Components
+
+| Component | Description |
+|-----------|-------------|
+| `WorkspaceProvider` | React context provider - wrap your app with this. Accepts `lang` prop. |
+| `WorkspaceMenuItems` | Menu items for Excalidraw's MainMenu. Optional `lang` prop for override. |
+| `DrawingsDialog` | Modal dialog for managing all drawings. Optional `lang` prop for override. |
+
+### Hooks
+
+| Hook | Description |
+|------|-------------|
+| `useWorkspace()` | Access workspace state, actions, and current language |
+| `useWorkspaceLang()` | Get just the current language and translations |
+
+### useWorkspace() returns
+
+```tsx
+const {
+  // State
+  drawings,           // Drawing[] - all drawings
+  activeDrawing,      // Drawing | null - currently active
+  isLoading,          // boolean
+  error,              // string | null
+
+  // Language
+  lang,               // string - current language code
+  t,                  // Translations object
+
+  // Actions
+  createNewDrawing,   // (name?: string) => Promise<Drawing>
+  switchDrawing,      // (id: string) => Promise<void>
+  renameDrawing,      // (id: string, name: string) => Promise<void>
+  removeDrawing,      // (id: string) => Promise<void>
+  saveCurrentDrawing, // (elements, appState) => Promise<void>
+} = useWorkspace();
+```
+
+## Data Storage
+
+Drawings are stored in IndexedDB with the following structure:
+
 ```typescript
 interface Drawing {
   id: string;
   name: string;
-  createdAt: Date;
-  updatedAt: Date;
   elements: ExcalidrawElement[];
-  appState: Partial<AppState>;
-  files: BinaryFiles;
+  appState: Record<string, unknown>;
+  files: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
 }
-
-interface Workspace {
-  id: string;
-  name: string;
-  drawings: string[]; // Drawing IDs
-  activeDrawingId: string;
-  createdAt: Date;
-  updatedAt: Date;
-}
-```
-
-### UI Components
-- `WorkspaceSidebar` - Collapsible sidebar showing drawing list
-- `DrawingListItem` - Individual drawing entry with actions
-- `NewDrawingButton` - Creates new blank drawing
-- `WorkspaceProvider` - React context for workspace state
-
-## Integration with B310 Fork
-
-This feature will be implemented as a modular addition that can be:
-1. Merged into the main B310 fork as a PR
-2. Maintained as a separate layer/plugin for Rita
-
-## Development
-
-### Prerequisites
-- Node.js 18+
-- Yarn
-- B310 Excalidraw fork cloned locally
-
-### Setup
-```bash
-# Clone B310 fork
-git clone https://github.com/b310-digital/excalidraw.git rita
-cd rita
-
-# Apply workspace patches
-git remote add workspace https://github.com/farapholch/rita-workspace.git
-git fetch workspace
-git merge workspace/main
 ```
 
 ## Links
 
+- **npm:** https://www.npmjs.com/package/rita-workspace
 - **B310 Excalidraw Fork:** https://github.com/b310-digital/excalidraw
 - **Original Excalidraw:** https://github.com/excalidraw/excalidraw
-- **Rita:** Your local Rita deployment
 
 ## License
 
-MIT (same as Excalidraw)
+MIT
