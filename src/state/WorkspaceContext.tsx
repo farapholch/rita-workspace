@@ -36,6 +36,7 @@ export interface WorkspaceContextValue {
 
   // For Excalidraw integration
   saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
+  saveDrawingById: (id: string, elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
 
   // Export/Import
   exportWorkspace: () => Promise<void>;
@@ -228,6 +229,26 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [activeDrawing]);
 
+  const saveDrawingById = useCallback(async (
+    id: string,
+    elements: unknown[],
+    appState: Record<string, unknown>,
+    files?: Record<string, unknown>
+  ): Promise<void> => {
+    try {
+      const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
+        elements,
+        appState,
+      };
+      if (files) {
+        updateData.files = files;
+      }
+      await updateDrawing(id, updateData);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save drawing');
+    }
+  }, []);
+
   const exportWorkspace = useCallback(async (): Promise<void> => {
     try {
       const exportData = {
@@ -315,6 +336,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     removeDrawing,
     duplicateCurrentDrawing,
     saveCurrentDrawing,
+    saveDrawingById,
     exportWorkspace,
     importWorkspace,
   };
