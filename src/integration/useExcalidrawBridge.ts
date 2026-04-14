@@ -30,7 +30,7 @@ export function useExcalidrawBridge({
   autoSaveInterval = 2000,
 }: UseExcalidrawBridgeOptions) {
   const { activeDrawing, saveCurrentDrawing } = useWorkspace();
-  const saveTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const saveTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastDrawingIdRef = useRef<string | null>(null);
 
   // Load drawing when activeDrawing changes
