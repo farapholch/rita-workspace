@@ -1,0 +1,88 @@
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: #868e96;
+  font-size: 14px;
+}
+
+.item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: background 0.1s, border-color 0.1s;
+}
+
+.item:hover {
+  background: #e9ecef;
+}
+
+.item.active {
+  background: #e7f5ff;
+  border-left-color: #228be6;
+}
+
+.itemContent {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.name {
+  font-size: 14px;
+  font-weight: 500;
+  color: #212529;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.date {
+  font-size: 11px;
+  color: #868e96;
+}
+
+.editInput {
+  font-size: 14px;
+  font-weight: 500;
+  padding: 2px 6px;
+  border: 1px solid #228be6;
+  border-radius: 4px;
+  outline: none;
+  width: 100%;
+}
+
+.actions {
+  display: flex;
+  gap: 4px;
+  opacity: 0;
+  transition: opacity 0.1s;
+}
+
+.item:hover .actions {
+  opacity: 1;
+}
+
+.actionButton {
+  background: none;
+  border: none;
+  padding: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  border-radius: 4px;
+  line-height: 1;
+}
+
+.actionButton:hover {
+  background: #dee2e6;
+}

@@ -1,0 +1,40 @@
+{
+  "name": "@rita/workspace",
+  "version": "0.1.0",
+  "description": "Multi-drawing workspace feature for Rita (Excalidraw fork)",
+  "main": "dist/index.js",
+  "module": "dist/index.mjs",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src/",
+    "typecheck": "tsc --noEmit"
+  },
+  "peerDependencies": {
+    "react": "^18.0.0",
+    "react-dom": "^18.0.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.2.0",
+    "@types/react-dom": "^18.2.0",
+    "eslint": "^8.0.0",
+    "tsup": "^8.0.0",
+    "typescript": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "idb": "^8.0.0",
+    "nanoid": "^5.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/farapholch/rita-workspace.git"
+  },
+  "license": "MIT"
+}
