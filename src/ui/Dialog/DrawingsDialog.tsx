@@ -214,12 +214,17 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               <div
                 key={drawing.id}
                 className="rita-workspace-dialog-item"
+                onClick={() => {
+                  if (editingId || confirmDeleteId) return;
+                  if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
+                }}
                 style={{
                   padding: '12px 20px',
                   display: 'flex',
                   alignItems: 'center',
                   gap: '12px',
                   borderBottom: '1px solid var(--default-border-color, #f0f0f0)',
+                  cursor: editingId || confirmDeleteId ? 'default' : 'pointer',
                   backgroundColor:
                     activeDrawing?.id === drawing.id
                       ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))'
@@ -358,22 +363,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                   ) : (
                     <>
                       <button
-                        onClick={() => handleSelect(drawing)}
-                        style={{
-                          padding: '6px 12px',
-                          fontSize: '12px',
-                          backgroundColor: 'var(--color-primary, #6c63ff)',
-                          color: '#fff',
-                          border: 'none',
-                          borderRadius: '4px',
-                          cursor: 'pointer',
-                        }}
-                        disabled={activeDrawing?.id === drawing.id}
-                      >
-                        {t.open}
-                      </button>
-                      <button
-                        onClick={() => exportDrawingAsExcalidraw(drawing.id)}
+                        onClick={(e) => { e.stopPropagation(); exportDrawingAsExcalidraw(drawing.id); }}
                         style={{
                           padding: '6px 12px',
                           fontSize: '12px',
@@ -388,7 +378,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                         💾
                       </button>
                       <button
-                        onClick={() => handleStartEdit(drawing)}
+                        onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
                         style={{
                           padding: '6px 12px',
                           fontSize: '12px',
@@ -403,7 +393,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                         ✏️
                       </button>
                       <button
-                        onClick={() => setConfirmDeleteId(drawing.id)}
+                        onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(drawing.id); }}
                         style={{
                           padding: '6px 12px',
                           fontSize: '12px',
