@@ -34,12 +34,12 @@ export interface Translations {
 
 const sv: Translations = {
   // Menu
-  drawings: 'Ritningar',
+  drawings: 'Arbetsyta',
   newDrawing: 'Ny ritning',
-  manageDrawings: 'Hantera ritningar...',
+  manageDrawings: 'Hantera arbetsyta...',
 
   // Dialog
-  dialogTitle: 'Ritningar',
+  dialogTitle: 'Arbetsyta',
   close: 'Stäng',
   open: 'Öppna',
   rename: 'Byt namn',
@@ -60,12 +60,12 @@ const sv: Translations = {
 
 const en: Translations = {
   // Menu
-  drawings: 'Drawings',
+  drawings: 'Workspace',
   newDrawing: 'New drawing',
-  manageDrawings: 'Manage drawings...',
+  manageDrawings: 'Manage workspace...',
 
   // Dialog
-  dialogTitle: 'Drawings',
+  dialogTitle: 'Workspace',
   close: 'Close',
   open: 'Open',
   rename: 'Rename',

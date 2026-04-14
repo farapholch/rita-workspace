@@ -35,7 +35,7 @@ export interface WorkspaceContextValue {
   duplicateCurrentDrawing: () => Promise<Drawing | null>;
 
   // For Excalidraw integration
-  saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>) => Promise<void>;
+  saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
 }
 
 const WorkspaceContext = createContext<WorkspaceContextValue | null>(null);
@@ -205,12 +205,20 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
   const saveCurrentDrawing = useCallback(async (
     elements: unknown[],
-    appState: Record<string, unknown>
+    appState: Record<string, unknown>,
+    files?: Record<string, unknown>
   ): Promise<void> => {
     if (!activeDrawing) return;
 
     try {
-      const updated = await updateDrawing(activeDrawing.id, { elements, appState });
+      const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
+        elements,
+        appState,
+      };
+      if (files) {
+        updateData.files = files;
+      }
+      const updated = await updateDrawing(activeDrawing.id, updateData);
       if (updated) {
         setActiveDrawing(updated);
         setDrawings((prev) => prev.map((d) => (d.id === updated.id ? updated : d)));
