@@ -87,11 +87,16 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
 
+  const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open) {
       refreshDrawings();
-      setPosition(null); // Reset position when reopening
+      // Only reset position when dialog first opens, not on re-renders
+      if (!prevOpenRef.current) {
+        setPosition(null);
+      }
     }
+    prevOpenRef.current = open;
   }, [open, refreshDrawings]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
