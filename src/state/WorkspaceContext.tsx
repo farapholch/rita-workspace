@@ -22,7 +22,7 @@ export interface WorkspaceContextValue {
   activeDrawing: Drawing | null;
   isLoading: boolean;
   error: string | null;
-  isTabLocked: boolean; // true = this tab owns the workspace, false = another tab owns it
+  isDrawingConflict: boolean; // true = another tab has the same drawing open
 
   // Language
   lang: string;
@@ -87,8 +87,33 @@ const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID
   ? crypto.randomUUID()
   : Math.random().toString(36).slice(2);
 
-const LOCK_KEY = 'rita-workspace-active-tab';
-const LOCK_CHANNEL = 'rita-workspace-lock';
+const TABS_KEY = 'rita-workspace-tabs'; // JSON: { tabId: drawingId, ... }
+const TAB_CHANNEL = 'rita-workspace-tabs';
+
+function getTabsMap(): Record<string, string> {
+  try {
+    return JSON.parse(localStorage.getItem(TABS_KEY) || '{}');
+  } catch {
+    return {};
+  }
+}
+
+function setTabDrawing(drawingId: string | null) {
+  const tabs = getTabsMap();
+  if (drawingId) {
+    tabs[TAB_ID] = drawingId;
+  } else {
+    delete tabs[TAB_ID];
+  }
+  localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+}
+
+function isDrawingOpenInOtherTab(drawingId: string): boolean {
+  const tabs = getTabsMap();
+  return Object.entries(tabs).some(
+    ([tabId, dId]) => tabId !== TAB_ID && dId === drawingId
+  );
+}
 
 export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
@@ -96,56 +121,48 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const [activeDrawing, setActiveDrawing] = useState<Drawing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [isTabLocked, setIsTabLocked] = useState(true);
+  const [isDrawingConflict, setIsDrawingConflict] = useState(false);
 
-  // Tab locking: only one tab can auto-save at a time
+  // Track active drawing per tab
   useEffect(() => {
-    // Claim the lock
-    localStorage.setItem(LOCK_KEY, TAB_ID);
-    setIsTabLocked(true);
+    const drawingId = activeDrawing?.id || null;
+    setTabDrawing(drawingId);
+
+    if (drawingId) {
+      setIsDrawingConflict(isDrawingOpenInOtherTab(drawingId));
+    } else {
+      setIsDrawingConflict(false);
+    }
 
     let channel: BroadcastChannel | null = null;
     try {
-      channel = new BroadcastChannel(LOCK_CHANNEL);
+      channel = new BroadcastChannel(TAB_CHANNEL);
+      channel.postMessage({ type: 'drawing-changed', tabId: TAB_ID, drawingId });
 
-      // Notify other tabs
-      channel.postMessage({ type: 'tab-activated', tabId: TAB_ID });
-
-      // Listen for other tabs claiming the lock
       channel.onmessage = (event) => {
-        if (event.data?.type === 'tab-activated' && event.data.tabId !== TAB_ID) {
-          setIsTabLocked(false);
+        if (event.data?.tabId !== TAB_ID && drawingId) {
+          // Another tab changed — recheck conflict
+          setIsDrawingConflict(isDrawingOpenInOtherTab(drawingId));
         }
       };
     } catch {
-      // BroadcastChannel not supported, fallback to storage events
+      // BroadcastChannel not supported
     }
 
-    // Also listen for storage changes (fallback for older browsers)
-    const onStorage = (e: StorageEvent) => {
-      if (e.key === LOCK_KEY && e.newValue !== TAB_ID) {
-        setIsTabLocked(false);
-      }
-    };
-    window.addEventListener('storage', onStorage);
-
-    // Re-claim on focus
-    const onFocus = () => {
-      localStorage.setItem(LOCK_KEY, TAB_ID);
-      setIsTabLocked(true);
-      channel?.postMessage({ type: 'tab-activated', tabId: TAB_ID });
-    };
-    window.addEventListener('focus', onFocus);
-
     return () => {
-      window.removeEventListener('storage', onStorage);
-      window.removeEventListener('focus', onFocus);
       channel?.close();
-      // Release lock if we own it
-      if (localStorage.getItem(LOCK_KEY) === TAB_ID) {
-        localStorage.removeItem(LOCK_KEY);
-      }
     };
+  }, [activeDrawing?.id]);
+
+  // Cleanup on tab close
+  useEffect(() => {
+    const onUnload = () => {
+      const tabs = getTabsMap();
+      delete tabs[TAB_ID];
+      localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+    };
+    window.addEventListener('beforeunload', onUnload);
+    return () => window.removeEventListener('beforeunload', onUnload);
   }, []);
 
   // Get translations based on lang prop
@@ -485,7 +502,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     activeDrawing,
     isLoading,
     error,
-    isTabLocked,
+    isDrawingConflict,
     lang,
     t,
     createNewDrawing,
