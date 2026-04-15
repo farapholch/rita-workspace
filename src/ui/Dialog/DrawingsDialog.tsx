@@ -200,14 +200,14 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       className="rita-workspace-dialog-overlay"
       style={{
         position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
-        backgroundColor: position ? 'transparent' : 'rgba(0, 0, 0, 0.4)',
+        backgroundColor: 'rgba(0, 0, 0, 0.4)',
         display: position ? 'block' : 'flex',
         alignItems: 'center', justifyContent: 'center',
-        zIndex: 9999, pointerEvents: position ? 'none' : 'auto',
+        zIndex: 9999,
       }}
-      onClick={(e) => { if (!position && e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
-      <div ref={dialogRef} className="rita-workspace-dialog" style={{ ...dialogStyle, pointerEvents: 'auto' }}>
+      <div ref={dialogRef} className="rita-workspace-dialog" style={dialogStyle}>
         {/* Header - draggable */}
         <div
           onMouseDown={handleMouseDown}
