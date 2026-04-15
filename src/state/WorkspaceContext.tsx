@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useEffect, useState, useCallback, ReactNode } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
 import {
   Drawing,
   Workspace,
@@ -153,6 +153,20 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isDrawingConflict, setIsDrawingConflict] = useState(false);
+  const prevConflictRef = useRef(false);
+
+  // When conflict resolves (true → false), reload drawing from DB
+  // so we don't keep stale data from when the tab was read-only
+  useEffect(() => {
+    if (prevConflictRef.current && !isDrawingConflict && activeDrawing?.id) {
+      getDrawing(activeDrawing.id).then((fresh) => {
+        if (fresh) {
+          setActiveDrawing(fresh);
+        }
+      });
+    }
+    prevConflictRef.current = isDrawingConflict;
+  }, [isDrawingConflict, activeDrawing?.id]);
 
   // Track active drawing per tab
   useEffect(() => {
@@ -165,15 +179,20 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       setIsDrawingConflict(false);
     }
 
+    const recheckConflict = () => {
+      if (drawingId) {
+        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+      }
+    };
+
     let channel: BroadcastChannel | null = null;
     try {
       channel = new BroadcastChannel(TAB_CHANNEL);
       channel.postMessage({ type: 'drawing-changed', tabId: TAB_ID, drawingId });
 
       channel.onmessage = (event) => {
-        if (event.data?.tabId !== TAB_ID && drawingId) {
-          // Another tab changed or closed — recheck conflict
-          setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+        if (event.data?.tabId !== TAB_ID) {
+          recheckConflict();
         }
       };
     } catch {
@@ -183,8 +202,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     // Also listen for localStorage changes (fires when another tab modifies it)
     // This serves as a backup for BroadcastChannel, especially during tab close
     const onStorage = (e: StorageEvent) => {
-      if (e.key === TABS_KEY && drawingId) {
-        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+      if (e.key === TABS_KEY) {
+        recheckConflict();
       }
     };
     window.addEventListener('storage', onStorage);
