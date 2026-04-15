@@ -11,7 +11,6 @@ import {
   duplicateDrawing,
   addDrawingToWorkspace,
   removeDrawingFromWorkspace,
-  setActiveDrawing as setActiveDrawingInStore,
 } from '../storage';
 import { getTranslations, type Translations } from '../i18n';
 
@@ -200,10 +199,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const allDrawings = await getAllDrawings();
       const wsDrawings = allDrawings.filter((d) => workspace.drawingIds.includes(d.id));
       setDrawings(wsDrawings);
-      if (workspace.activeDrawingId) {
-        const active = await getDrawing(workspace.activeDrawingId);
-        if (active) setActiveDrawing(active);
-      }
+      // Don't change activeDrawing here — each tab manages its own active drawing
     } catch (err) {
       // silent refresh
     }
@@ -217,7 +213,6 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const defaultName = `${t.newDrawing} ${drawings.length + 1}`;
       const drawing = await createDrawing(name || defaultName);
       await addDrawingToWorkspace(workspace.id, drawing.id);
-      await setActiveDrawingInStore(workspace.id, drawing.id);
 
       setDrawings((prev) => [...prev, drawing]);
       setActiveDrawing(drawing);
@@ -240,7 +235,6 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     try {
       const drawing = await getDrawing(id);
       if (drawing) {
-        await setActiveDrawingInStore(workspace.id, id);
         setActiveDrawing(drawing);
         setWorkspace((prev) => prev ? { ...prev, activeDrawingId: id } : null);
       }
