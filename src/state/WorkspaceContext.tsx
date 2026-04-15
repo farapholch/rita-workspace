@@ -38,6 +38,9 @@ export interface WorkspaceContextValue {
   saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
   saveDrawingById: (id: string, elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
 
+  // Refresh
+  refreshDrawings: () => Promise<void>;
+
   // Export/Import
   exportWorkspace: () => Promise<void>;
   importWorkspace: () => Promise<void>;
@@ -113,6 +116,21 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
     init();
   }, []);
+
+  const refreshDrawings = useCallback(async (): Promise<void> => {
+    if (!workspace) return;
+    try {
+      const allDrawings = await getAllDrawings();
+      const wsDrawings = allDrawings.filter((d) => workspace.drawingIds.includes(d.id));
+      setDrawings(wsDrawings);
+      if (workspace.activeDrawingId) {
+        const active = await getDrawing(workspace.activeDrawingId);
+        if (active) setActiveDrawing(active);
+      }
+    } catch (err) {
+      // silent refresh
+    }
+  }, [workspace]);
 
   const createNewDrawing = useCallback(async (name?: string): Promise<Drawing | null> => {
     if (!workspace) return null;
@@ -416,6 +434,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     duplicateCurrentDrawing,
     saveCurrentDrawing,
     saveDrawingById,
+    refreshDrawings,
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
