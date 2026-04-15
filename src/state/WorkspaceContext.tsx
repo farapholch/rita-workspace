@@ -179,9 +179,31 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         const wsDrawings = allDrawings.filter((d) => ws.drawingIds.includes(d.id));
         setDrawings(wsDrawings);
 
-        if (ws.activeDrawingId) {
-          const active = await getDrawing(ws.activeDrawingId);
-          setActiveDrawing(active || null);
+        // Determine which drawing to open in this tab:
+        // 1. This tab's last drawing (survives page refresh via sessionStorage)
+        // 2. First drawing in the list (fallback)
+        const lastDrawingId = sessionStorage.getItem('rita-workspace-tab-drawing');
+        let active: Drawing | null = null;
+
+        if (lastDrawingId) {
+          active = wsDrawings.find((d) => d.id === lastDrawingId) || null;
+          if (!active) {
+            // Drawing was deleted, try to load from DB
+            const fromDb = await getDrawing(lastDrawingId);
+            if (fromDb && ws.drawingIds.includes(fromDb.id)) {
+              active = fromDb;
+            }
+          }
+        }
+
+        // Fallback: first drawing in list
+        if (!active && wsDrawings.length > 0) {
+          active = wsDrawings[0];
+        }
+
+        if (active) {
+          setActiveDrawing(active);
+          sessionStorage.setItem('rita-workspace-tab-drawing', active.id);
         }
       } catch (err) {
         setError(err instanceof Error ? err.message : 'Failed to load workspace');
@@ -221,6 +243,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         drawingIds: [...prev.drawingIds, drawing.id],
         activeDrawingId: drawing.id,
       } : null);
+      sessionStorage.setItem('rita-workspace-tab-drawing', drawing.id);
 
       return drawing;
     } catch (err) {
@@ -237,6 +260,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       if (drawing) {
         setActiveDrawing(drawing);
         setWorkspace((prev) => prev ? { ...prev, activeDrawingId: id } : null);
+        sessionStorage.setItem('rita-workspace-tab-drawing', id);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to switch drawing');
