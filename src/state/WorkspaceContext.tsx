@@ -22,6 +22,7 @@ export interface WorkspaceContextValue {
   activeDrawing: Drawing | null;
   isLoading: boolean;
   error: string | null;
+  isTabLocked: boolean; // true = this tab owns the workspace, false = another tab owns it
 
   // Language
   lang: string;
@@ -81,12 +82,71 @@ interface WorkspaceProviderProps {
   lang?: string;
 }
 
+// Generate unique tab ID
+const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID
+  ? crypto.randomUUID()
+  : Math.random().toString(36).slice(2);
+
+const LOCK_KEY = 'rita-workspace-active-tab';
+const LOCK_CHANNEL = 'rita-workspace-lock';
+
 export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
   const [activeDrawing, setActiveDrawing] = useState<Drawing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [isTabLocked, setIsTabLocked] = useState(true);
+
+  // Tab locking: only one tab can auto-save at a time
+  useEffect(() => {
+    // Claim the lock
+    localStorage.setItem(LOCK_KEY, TAB_ID);
+    setIsTabLocked(true);
+
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(LOCK_CHANNEL);
+
+      // Notify other tabs
+      channel.postMessage({ type: 'tab-activated', tabId: TAB_ID });
+
+      // Listen for other tabs claiming the lock
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'tab-activated' && event.data.tabId !== TAB_ID) {
+          setIsTabLocked(false);
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported, fallback to storage events
+    }
+
+    // Also listen for storage changes (fallback for older browsers)
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === LOCK_KEY && e.newValue !== TAB_ID) {
+        setIsTabLocked(false);
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
+    // Re-claim on focus
+    const onFocus = () => {
+      localStorage.setItem(LOCK_KEY, TAB_ID);
+      setIsTabLocked(true);
+      channel?.postMessage({ type: 'tab-activated', tabId: TAB_ID });
+    };
+    window.addEventListener('focus', onFocus);
+
+    return () => {
+      window.removeEventListener('storage', onStorage);
+      window.removeEventListener('focus', onFocus);
+      channel?.close();
+      // Release lock if we own it
+      if (localStorage.getItem(LOCK_KEY) === TAB_ID) {
+        localStorage.removeItem(LOCK_KEY);
+      }
+    };
+  }, []);
 
   // Get translations based on lang prop
   const t = getTranslations(lang);
@@ -425,6 +485,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     activeDrawing,
     isLoading,
     error,
+    isTabLocked,
     lang,
     t,
     createNewDrawing,
