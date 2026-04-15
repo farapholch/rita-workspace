@@ -86,12 +86,27 @@ const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID
   ? crypto.randomUUID()
   : Math.random().toString(36).slice(2);
 
-const TABS_KEY = 'rita-workspace-tabs'; // JSON: { tabId: drawingId, ... }
+const TABS_KEY = 'rita-workspace-tabs'; // JSON: { tabId: { drawingId, openedAt }, ... }
 const TAB_CHANNEL = 'rita-workspace-tabs';
 
-function getTabsMap(): Record<string, string> {
+interface TabEntry {
+  drawingId: string;
+  openedAt: number; // timestamp when this tab opened the drawing
+}
+
+function getTabsMap(): Record<string, TabEntry> {
   try {
-    return JSON.parse(localStorage.getItem(TABS_KEY) || '{}');
+    const raw = JSON.parse(localStorage.getItem(TABS_KEY) || '{}');
+    // Migrate old format: { tabId: drawingId } → { tabId: { drawingId, openedAt } }
+    const result: Record<string, TabEntry> = {};
+    for (const [tabId, value] of Object.entries(raw)) {
+      if (typeof value === 'string') {
+        result[tabId] = { drawingId: value, openedAt: 0 };
+      } else if (value && typeof value === 'object' && 'drawingId' in (value as TabEntry)) {
+        result[tabId] = value as TabEntry;
+      }
+    }
+    return result;
   } catch {
     return {};
   }
@@ -100,17 +115,34 @@ function getTabsMap(): Record<string, string> {
 function setTabDrawing(drawingId: string | null) {
   const tabs = getTabsMap();
   if (drawingId) {
-    tabs[TAB_ID] = drawingId;
+    // Only update openedAt if this is a different drawing than before
+    const existing = tabs[TAB_ID];
+    if (existing && existing.drawingId === drawingId) {
+      // Keep existing timestamp
+    } else {
+      tabs[TAB_ID] = { drawingId, openedAt: Date.now() };
+    }
   } else {
     delete tabs[TAB_ID];
   }
   localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
 }
 
-function isDrawingOpenInOtherTab(drawingId: string): boolean {
+/**
+ * Check if another tab opened the same drawing BEFORE this tab.
+ * Only the tab that opened the drawing later is considered in conflict.
+ */
+function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
   const tabs = getTabsMap();
+  const myEntry = tabs[TAB_ID];
+  if (!myEntry) return false;
+  const myOpenedAt = myEntry.openedAt;
+
   return Object.entries(tabs).some(
-    ([tabId, dId]) => tabId !== TAB_ID && dId === drawingId
+    ([tabId, entry]) =>
+      tabId !== TAB_ID &&
+      entry.drawingId === drawingId &&
+      entry.openedAt <= myOpenedAt
   );
 }
 
@@ -128,7 +160,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     setTabDrawing(drawingId);
 
     if (drawingId) {
-      setIsDrawingConflict(isDrawingOpenInOtherTab(drawingId));
+      setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
     } else {
       setIsDrawingConflict(false);
     }
@@ -140,25 +172,42 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       channel.onmessage = (event) => {
         if (event.data?.tabId !== TAB_ID && drawingId) {
-          // Another tab changed — recheck conflict
-          setIsDrawingConflict(isDrawingOpenInOtherTab(drawingId));
+          // Another tab changed or closed — recheck conflict
+          setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
         }
       };
     } catch {
       // BroadcastChannel not supported
     }
 
+    // Also listen for localStorage changes (fires when another tab modifies it)
+    // This serves as a backup for BroadcastChannel, especially during tab close
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === TABS_KEY && drawingId) {
+        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+      }
+    };
+    window.addEventListener('storage', onStorage);
+
     return () => {
       channel?.close();
+      window.removeEventListener('storage', onStorage);
     };
   }, [activeDrawing?.id]);
 
-  // Cleanup on tab close
+  // Cleanup on tab close — notify other tabs so they can recheck conflict
   useEffect(() => {
     const onUnload = () => {
       const tabs = getTabsMap();
       delete tabs[TAB_ID];
       localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+      try {
+        const channel = new BroadcastChannel(TAB_CHANNEL);
+        channel.postMessage({ type: 'tab-closed', tabId: TAB_ID });
+        channel.close();
+      } catch {
+        // BroadcastChannel not supported
+      }
     };
     window.addEventListener('beforeunload', onUnload);
     return () => window.removeEventListener('beforeunload', onUnload);
