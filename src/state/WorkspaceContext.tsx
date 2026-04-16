@@ -413,13 +413,24 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const createNewDrawing = useCallback(async (name?: string, folderId?: string | null): Promise<Drawing | null> => {
     if (!workspace) return null;
 
+    // Optimistic: create temp drawing immediately
+    const now = Date.now();
+    const tempId = `temp-${now}`;
+    const defaultName = `${t.newDrawing} ${drawingsRef.current.length + 1}`;
+    const tempDrawing: Drawing = {
+      id: tempId, name: name || defaultName, folderId: folderId || null,
+      elements: [], appState: {}, files: {}, createdAt: now, updatedAt: now,
+    };
+    setDrawings((prev) => [...prev, tempDrawing]);
+    setActiveDrawing(tempDrawing);
+    sessionStorage.setItem('rita-workspace-tab-drawing', tempId);
+
     try {
-      // Use translated default name
-      const defaultName = `${t.newDrawing} ${drawingsRef.current.length + 1}`;
       const drawing = await createDrawing(name || defaultName, [], {}, folderId);
       await addDrawingToWorkspace(workspace.id, drawing.id);
 
-      setDrawings((prev) => [...prev, drawing]);
+      // Replace temp with real drawing
+      setDrawings((prev) => prev.map((d) => (d.id === tempId ? drawing : d)));
       setActiveDrawing(drawing);
       setWorkspace((prev) => prev ? {
         ...prev,
@@ -430,6 +441,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       return drawing;
     } catch (err) {
+      // Revert
+      setDrawings((prev) => prev.filter((d) => d.id !== tempId));
       setError(err instanceof Error ? err.message : 'Failed to create drawing');
       return null;
     }
@@ -468,20 +481,28 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const removeDrawing = useCallback(async (id: string): Promise<void> => {
     if (!workspace || drawingsRef.current.length <= 1) return;
 
+    // Optimistic: remove immediately, switch active if needed
+    const removedDrawing = drawingsRef.current.find((d) => d.id === id);
+    const wasActive = activeDrawingIdRef.current === id;
+    const remaining = drawingsRef.current.filter((d) => d.id !== id);
+
+    setDrawings(remaining);
+    if (wasActive && remaining.length > 0) {
+      setActiveDrawing(remaining[0]);
+      sessionStorage.setItem('rita-workspace-tab-drawing', remaining[0].id);
+    }
+
     try {
       await deleteDrawing(id);
       const updatedWorkspace = await removeDrawingFromWorkspace(workspace.id, id);
-
-      setDrawings((prev) => prev.filter((d) => d.id !== id));
-
       if (updatedWorkspace) {
         setWorkspace(updatedWorkspace);
-        if (activeDrawingIdRef.current === id && updatedWorkspace.activeDrawingId) {
-          const newActive = await getDrawing(updatedWorkspace.activeDrawingId);
-          setActiveDrawing(newActive || null);
-        }
       }
     } catch (err) {
+      // Revert
+      if (removedDrawing) {
+        setDrawings((prev) => [...prev, removedDrawing]);
+      }
       setError(err instanceof Error ? err.message : 'Failed to delete drawing');
     }
   }, [workspace]);
@@ -489,19 +510,36 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const duplicateCurrentDrawing = useCallback(async (): Promise<Drawing | null> => {
     if (!activeDrawingIdRef.current || !workspace) return null;
 
+    // Optimistic: create temp duplicate immediately
+    const source = drawingsRef.current.find((d) => d.id === activeDrawingIdRef.current);
+    if (!source) return null;
+
+    const now = Date.now();
+    const tempId = `temp-dup-${now}`;
+    const tempDuplicate: Drawing = {
+      ...source, id: tempId, name: `${source.name} (copy)`,
+      createdAt: now, updatedAt: now,
+    };
+    setDrawings((prev) => [...prev, tempDuplicate]);
+
     try {
       const duplicate = await duplicateDrawing(activeDrawingIdRef.current);
       if (duplicate) {
         await addDrawingToWorkspace(workspace.id, duplicate.id);
-        setDrawings((prev) => [...prev, duplicate]);
+        // Replace temp with real
+        setDrawings((prev) => prev.map((d) => (d.id === tempId ? duplicate : d)));
         setWorkspace((prev) => prev ? {
           ...prev,
           drawingIds: [...prev.drawingIds, duplicate.id],
         } : null);
         return duplicate;
       }
+      // No duplicate returned — remove temp
+      setDrawings((prev) => prev.filter((d) => d.id !== tempId));
       return null;
     } catch (err) {
+      // Revert
+      setDrawings((prev) => prev.filter((d) => d.id !== tempId));
       setError(err instanceof Error ? err.message : 'Failed to duplicate drawing');
       return null;
     }
