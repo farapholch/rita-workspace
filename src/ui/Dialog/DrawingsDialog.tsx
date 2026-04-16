@@ -87,6 +87,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
+  const [selectedId, setSelectedId] = useState<string | null>(null);
 
   // Folder UI state
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -118,6 +119,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       if (!prevOpenRef.current) {
         setPosition(null);
         setSearchQuery('');
+        setSelectedId(null);
         // Expand all folders by default on first open
         setExpandedFolders(new Set(folders.map((f) => f.id)));
       }
@@ -159,6 +161,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
   const handleSelect = useCallback(async (drawing: Drawing) => {
     setSwitchingId(drawing.id);
+    setSelectedId(null);
     await switchDrawing(drawing.id);
     onDrawingSelect?.(drawing);
     setSwitchingId(null);
@@ -309,13 +312,22 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setDropTargetFolderId('__none__');
         setTimeout(() => setDropTargetFolderId(null), 0);
       }}
+      onClick={() => {
+        if (editingId || confirmDeleteId || movingDrawingId) return;
+        setSelectedId(drawing.id);
+      }}
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
-        cursor: draggingDrawingId ? 'grabbing' : 'default',
+        cursor: draggingDrawingId ? 'grabbing' : 'pointer',
         backgroundColor: activeDrawing?.id === drawing.id
-          ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
-        transition: 'background-color 0.15s',
+          ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))'
+          : selectedId === drawing.id
+          ? 'var(--color-primary-light, rgba(108, 99, 255, 0.06))'
+          : 'transparent',
+        border: selectedId === drawing.id && activeDrawing?.id !== drawing.id
+          ? '1px solid var(--color-primary, #6c63ff)' : '1px solid transparent',
+        transition: 'background-color 0.15s, border-color 0.15s',
         opacity: draggingDrawingId === drawing.id ? 0.4 : switchingId && switchingId !== drawing.id ? 0.5 : 1,
       }}
     >
