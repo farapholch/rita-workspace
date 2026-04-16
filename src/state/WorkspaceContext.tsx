@@ -729,15 +729,16 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, []);
 
   const moveDrawingToFolder = useCallback(async (drawingId: string, folderId: string | null): Promise<void> => {
+    // Optimistic update — move immediately in UI, persist in background
+    setDrawings((prev) => prev.map((d) => (d.id === drawingId ? { ...d, folderId } : d)));
+    if (activeDrawingIdRef.current === drawingId) {
+      setActiveDrawing((prev) => prev ? { ...prev, folderId } : prev);
+    }
     try {
-      const updated = await moveDrawingToFolderStore(drawingId, folderId);
-      if (updated) {
-        setDrawings((prev) => prev.map((d) => (d.id === drawingId ? updated : d)));
-        if (activeDrawingIdRef.current === drawingId) {
-          setActiveDrawing(updated);
-        }
-      }
+      await moveDrawingToFolderStore(drawingId, folderId);
     } catch (err) {
+      // Revert on failure
+      setDrawings((prev) => prev.map((d) => (d.id === drawingId ? { ...d, folderId: d.folderId } : d)));
       setError(err instanceof Error ? err.message : 'Failed to move drawing');
     }
   }, []);
