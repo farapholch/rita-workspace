@@ -330,12 +330,38 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
     // Periodic recheck — catches cases where beforeunload didn't fire
     // (e.g., browser crash, force close, or Playwright page.close())
-    const intervalId = setInterval(recheckConflict, 5000);
+    // Only polls when tab is visible to save battery
+    let intervalId: ReturnType<typeof setInterval> | null = null;
+
+    const startPolling = () => {
+      if (!intervalId && drawingId) {
+        intervalId = setInterval(recheckConflict, 5000);
+      }
+    };
+    const stopPolling = () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+        intervalId = null;
+      }
+    };
+
+    const onVisibilityChange = () => {
+      if (document.hidden) {
+        stopPolling();
+      } else {
+        recheckConflict(); // Immediate check when tab becomes visible
+        startPolling();
+      }
+    };
+
+    if (!document.hidden) startPolling();
+    document.addEventListener('visibilitychange', onVisibilityChange);
 
     return () => {
       channel?.close();
       window.removeEventListener('storage', onStorage);
-      clearInterval(intervalId);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
+      stopPolling();
     };
   }, [activeDrawing?.id]);
 
