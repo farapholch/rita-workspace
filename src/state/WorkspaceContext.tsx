@@ -405,6 +405,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
   const drawingsRef = useRef(drawings);
   drawingsRef.current = drawings;
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
   const activeDrawingIdRef = useRef(activeDrawing?.id ?? null);
   activeDrawingIdRef.current = activeDrawing?.id ?? null;
 
@@ -449,18 +451,19 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [workspace]);
 
   const renameDrawing = useCallback(async (id: string, name: string): Promise<void> => {
+    // Optimistic update
+    setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, name, updatedAt: Date.now() } : d)));
+    if (activeDrawingIdRef.current === id) {
+      setActiveDrawing((prev) => prev ? { ...prev, name, updatedAt: Date.now() } : prev);
+    }
     try {
-      const updated = await updateDrawing(id, { name });
-      if (updated) {
-        setDrawings((prev) => prev.map((d) => (d.id === id ? updated : d)));
-        if (activeDrawingIdRef.current === id) {
-          setActiveDrawing(updated);
-        }
-      }
+      await updateDrawing(id, { name });
     } catch (err) {
+      // Revert — refresh from DB
+      refreshDrawings();
       setError(err instanceof Error ? err.message : 'Failed to rename drawing');
     }
-  }, []);
+  }, [refreshDrawings]);
 
   const removeDrawing = useCallback(async (id: string): Promise<void> => {
     if (!workspace || drawingsRef.current.length <= 1) return;
@@ -696,37 +699,55 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [workspace, t]);
 
   const createFolder = useCallback(async (name: string): Promise<Folder | null> => {
+    // Optimistic: create a temporary folder immediately
+    const now = Date.now();
+    const tempId = `temp-${now}`;
+    const tempFolder: Folder = { id: tempId, name, createdAt: now, updatedAt: now };
+    setFolders((prev) => [...prev, tempFolder]);
     try {
       const folder = await createFolderStore(name);
-      setFolders((prev) => [...prev, folder]);
+      // Replace temp with real folder
+      setFolders((prev) => prev.map((f) => (f.id === tempId ? folder : f)));
       return folder;
     } catch (err) {
+      // Revert
+      setFolders((prev) => prev.filter((f) => f.id !== tempId));
       setError(err instanceof Error ? err.message : 'Failed to create folder');
       return null;
     }
   }, []);
 
   const renameFolder = useCallback(async (id: string, name: string): Promise<void> => {
+    // Optimistic update
+    const prevName = foldersRef.current.find((f) => f.id === id)?.name;
+    setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name, updatedAt: Date.now() } : f)));
     try {
-      const updated = await renameFolderStore(id, name);
-      if (updated) {
-        setFolders((prev) => prev.map((f) => (f.id === id ? updated : f)));
-      }
+      await renameFolderStore(id, name);
     } catch (err) {
+      // Revert
+      if (prevName !== undefined) {
+        setFolders((prev) => prev.map((f) => (f.id === id ? { ...f, name: prevName } : f)));
+      }
       setError(err instanceof Error ? err.message : 'Failed to rename folder');
     }
   }, []);
 
   const deleteFolder = useCallback(async (id: string): Promise<void> => {
+    // Optimistic update
+    const removedFolder = foldersRef.current.find((f) => f.id === id);
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setDrawings((prev) => prev.map((d) => d.folderId === id ? { ...d, folderId: null } : d));
     try {
       await deleteFolderStore(id);
-      setFolders((prev) => prev.filter((f) => f.id !== id));
-      // Drawings in the folder are moved to root — refresh to get updated folderId
-      setDrawings((prev) => prev.map((d) => d.folderId === id ? { ...d, folderId: null } : d));
     } catch (err) {
+      // Revert
+      if (removedFolder) {
+        setFolders((prev) => [...prev, removedFolder]);
+        refreshDrawings();
+      }
       setError(err instanceof Error ? err.message : 'Failed to delete folder');
     }
-  }, []);
+  }, [refreshDrawings]);
 
   const moveDrawingToFolder = useCallback(async (drawingId: string, folderId: string | null): Promise<void> => {
     // Optimistic update — move immediately in UI, persist in background
