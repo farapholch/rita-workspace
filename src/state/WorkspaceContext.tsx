@@ -440,11 +440,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const refreshDrawings = useCallback(async (): Promise<void> => {
     if (!workspace) return;
     try {
-      const allDrawings = await getAllDrawings();
+      // Load both in parallel, then set both at once to avoid flash of ungrouped drawings
+      const [allDrawings, allFolders] = await Promise.all([
+        getAllDrawings(),
+        getAllFolders(),
+      ]);
       const wsDrawings = allDrawings.filter((d) => workspace.drawingIds.includes(d.id));
+      // Batch updates — React 18 batches these automatically in async contexts
       setDrawings(wsDrawings);
-
-      const allFolders = await getAllFolders();
       setFolders(allFolders);
       // Don't change activeDrawing here — each tab manages its own active drawing
     } catch (err) {
