@@ -258,6 +258,13 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     });
   };
 
+  // Check days since last backup
+  const daysSinceBackup = useMemo(() => {
+    const lastBackup = localStorage.getItem('rita-workspace-last-backup');
+    if (!lastBackup) return drawings.length > 0 ? 999 : null; // Never backed up but has drawings
+    return Math.floor((Date.now() - parseInt(lastBackup, 10)) / (1000 * 60 * 60 * 24));
+  }, [drawings.length, open]); // eslint-disable-line react-hooks/exhaustive-deps
+
   // Filter and group drawings by folder (memoized — must be before early return)
   const { rootDrawings, drawingsByFolder, filteredFolders } = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
@@ -753,12 +760,23 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
           {/* === Section: Hela arbetsytan === */}
           <div style={sectionHeaderStyle}>{t.sectionWorkspace}</div>
+          {daysSinceBackup !== null && daysSinceBackup >= 7 && (
+            <div style={{ padding: '0 20px 8px', fontSize: '12px', color: 'var(--text-secondary-color, #888)' }}>
+              {daysSinceBackup >= 30
+                ? `⚠️ ${t.backupReminder || 'Ingen backup på'} ${daysSinceBackup} ${t.days || 'dagar'}`
+                : `${t.backupReminder || 'Senaste backup:'} ${daysSinceBackup} ${t.days || 'dagar sedan'}`
+              }
+            </div>
+          )}
           <div style={{ padding: '0 20px 16px', display: 'flex', gap: '8px' }}>
             <ActionButton
               icon="💾"
               label={t.saveAllBackup}
               description={t.saveAllBackupDesc}
-              onClick={exportWorkspace}
+              onClick={() => {
+                localStorage.setItem('rita-workspace-last-backup', Date.now().toString());
+                exportWorkspace();
+              }}
             />
             <ActionButton
               icon="📥"

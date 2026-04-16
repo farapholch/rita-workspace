@@ -57,6 +57,10 @@ export interface Translations {
   moveToRoot: string;
   newFolderName: string;
 
+  // Backup reminder
+  backupReminder: string;
+  days: string;
+
   // Shortcuts
   shortcutNewDrawing: string;
 }
@@ -112,6 +116,10 @@ const sv: Translations = {
   moveToRoot: 'Ingen mapp',
   newFolderName: 'Ny mapp',
 
+  // Backup reminder
+  backupReminder: 'Senaste backup:',
+  days: 'dagar sedan',
+
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
 };
@@ -166,6 +174,10 @@ const en: Translations = {
   moveToFolder: 'Move to folder',
   moveToRoot: 'No folder',
   newFolderName: 'New folder',
+
+  // Backup reminder
+  backupReminder: 'Last backup:',
+  days: 'days ago',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
