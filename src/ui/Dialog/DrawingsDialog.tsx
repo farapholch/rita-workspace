@@ -81,6 +81,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editName, setEditName] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  const [switchingId, setSwitchingId] = useState<string | null>(null);
 
   // Dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -125,8 +126,10 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   }, [position]);
 
   const handleSelect = useCallback(async (drawing: Drawing) => {
+    setSwitchingId(drawing.id);
     await switchDrawing(drawing.id);
     onDrawingSelect?.(drawing);
+    setSwitchingId(null);
   }, [switchDrawing, onDrawingSelect]);
 
   const handleCreate = useCallback(async () => {
@@ -242,16 +245,17 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                 <div
                   key={drawing.id}
                   onClick={() => {
-                    if (editingId || confirmDeleteId) return;
+                    if (editingId || confirmDeleteId || switchingId) return;
                     if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
                   }}
                   style={{
                     padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
                     borderRadius: '8px', marginBottom: '4px',
-                    cursor: editingId || confirmDeleteId ? 'default' : 'pointer',
+                    cursor: editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
                     backgroundColor: activeDrawing?.id === drawing.id
                       ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
                     transition: 'background-color 0.15s',
+                    opacity: switchingId && switchingId !== drawing.id ? 0.5 : 1,
                   }}
                 >
                   {renderThumbnail && (
@@ -298,7 +302,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                             }}
                             title={t.rename}
                           >
-                            {activeDrawing?.id === drawing.id && '✓ '}{drawing.name}
+                            {switchingId === drawing.id
+                              ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '4px' }}>⏳</span>
+                              : activeDrawing?.id === drawing.id ? '✓ ' : ''
+                            }
+                            {drawing.name}
                           </span>
                           <button
                             onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
