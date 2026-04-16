@@ -655,7 +655,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         >
 
           {/* === Drawings & Folders list === */}
-          {isRefreshing && drawings.length === 0 ? (
+          {isRefreshing ? (
             <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text-secondary-color, #666)' }}>
               <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '24px' }}>⏳</span>
             </div>

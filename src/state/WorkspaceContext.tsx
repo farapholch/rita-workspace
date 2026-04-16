@@ -282,11 +282,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     return () => { channel?.close(); };
   }, []);
 
-  // Clean up stale tabs on mount, then recheck conflict
+  const hasCleanedUpRef = useRef(false);
+
+  // Clean up stale tabs on mount, then do first conflict check
   useEffect(() => {
     cleanupStaleTabs();
-    // Recheck conflict after cleanup finishes (500ms + margin)
+    // First conflict check after cleanup finishes (500ms + margin)
     const timer = setTimeout(() => {
+      hasCleanedUpRef.current = true;
       const drawingId = activeDrawingIdRef.current;
       if (drawingId) {
         setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
@@ -300,10 +303,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     const drawingId = activeDrawing?.id || null;
     setTabDrawing(drawingId);
 
-    if (drawingId) {
-      setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
-    } else {
-      setIsDrawingConflict(false);
+    // Don't check conflict until stale tabs have been cleaned up (600ms after mount)
+    // This prevents false positives from dead tab entries
+    if (hasCleanedUpRef.current) {
+      if (drawingId) {
+        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+      } else {
+        setIsDrawingConflict(false);
+      }
     }
 
     const recheckConflict = () => {
