@@ -89,6 +89,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
   // Folder UI state
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
@@ -310,6 +311,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setDraggingDrawingId(null);
         setDropTargetFolderId(null);
       }}
+      onMouseEnter={() => setHoveredId(drawing.id)}
+      onMouseLeave={() => setHoveredId(null)}
       onClick={(e) => {
         e.stopPropagation();
         if (editingId || confirmDeleteId || movingDrawingId) return;
@@ -392,8 +395,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           </>
         )}
       </div>
-      {/* Row actions */}
-      <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+      {/* Row actions — visible on hover, selection, or active */}
+      <div style={{
+        display: 'flex', gap: '2px', alignItems: 'center',
+        visibility: (hoveredId === drawing.id || selectedId === drawing.id || activeDrawing?.id === drawing.id || confirmDeleteId === drawing.id || movingDrawingId === drawing.id || editingId === drawing.id) ? 'visible' : 'hidden',
+      }}>
         {confirmDeleteId === drawing.id ? (
           <>
             <button onClick={(e) => { e.stopPropagation(); handleDelete(drawing.id); }}
