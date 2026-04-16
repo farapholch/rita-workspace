@@ -301,16 +301,6 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const renderDrawingRow = (drawing: Drawing) => (
     <div
       key={drawing.id}
-      draggable={!editingId && !confirmDeleteId}
-      onDragStart={(e) => {
-        setDraggingDrawingId(drawing.id);
-        e.dataTransfer.effectAllowed = 'move';
-        e.dataTransfer.setData('text/plain', drawing.id);
-      }}
-      onDragEnd={() => {
-        setDraggingDrawingId(null);
-        setDropTargetFolderId(null);
-      }}
       onMouseEnter={() => setHoveredId(drawing.id)}
       onMouseLeave={() => setHoveredId(null)}
       onClick={(e) => {
@@ -321,7 +311,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
-        cursor: draggingDrawingId ? 'grabbing' : 'pointer',
+        cursor: 'pointer',
         backgroundColor: activeDrawing?.id === drawing.id
           ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))'
           : selectedId === drawing.id
@@ -333,6 +323,26 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         opacity: draggingDrawingId === drawing.id ? 0.4 : switchingId && switchingId !== drawing.id ? 0.5 : 1,
       }}
     >
+      {/* Drag handle */}
+      <span
+        draggable={!editingId && !confirmDeleteId}
+        onDragStart={(e) => {
+          setDraggingDrawingId(drawing.id);
+          e.dataTransfer.effectAllowed = 'move';
+          e.dataTransfer.setData('text/plain', drawing.id);
+        }}
+        onDragEnd={() => {
+          setDraggingDrawingId(null);
+          setDropTargetFolderId(null);
+        }}
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          cursor: 'grab', fontSize: '14px', color: 'var(--text-secondary-color, #aaa)',
+          flexShrink: 0, userSelect: 'none', padding: '4px 2px',
+          visibility: (hoveredId === drawing.id || selectedId === drawing.id || draggingDrawingId === drawing.id) ? 'visible' : 'hidden',
+        }}
+        title={t.moveToFolder}
+      >⠿</span>
       {renderThumbnail && (
         <div style={{
           width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',
