@@ -98,7 +98,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const [movingDrawingId, setMovingDrawingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [busyFolderId, setBusyFolderId] = useState<string | null>(null);
+  // busyFolderId removed — all folder operations are now optimistic
   const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Drag-and-drop state (for moving drawings to folders)
@@ -112,6 +112,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   const prevOpenRef = useRef(false);
+  const foldersRef = useRef(folders);
+  foldersRef.current = folders;
   useEffect(() => {
     if (open) {
       setIsRefreshing(true);
@@ -121,11 +123,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setSearchQuery('');
         setSelectedId(null);
         // Expand all folders by default on first open
-        setExpandedFolders(new Set(folders.map((f) => f.id)));
+        setExpandedFolders(new Set(foldersRef.current.map((f) => f.id)));
       }
     }
     prevOpenRef.current = open;
-  }, [open, refreshDrawings, folders]);
+  }, [open, refreshDrawings]);
 
   useEffect(() => {
     if (creatingFolder && newFolderInputRef.current) {
@@ -177,9 +179,9 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     setEditName(drawing.name);
   }, []);
 
-  const handleSaveEdit = useCallback(async () => {
+  const handleSaveEdit = useCallback(() => {
     if (editingId && editName.trim()) {
-      await renameDrawing(editingId, editName.trim());
+      renameDrawing(editingId, editName.trim());
       setEditingId(null);
       setEditName('');
     }
@@ -190,44 +192,39 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     setEditName('');
   }, []);
 
-  const handleDelete = useCallback(async (id: string) => {
-    await removeDrawing(id);
+  const handleDelete = useCallback((id: string) => {
+    removeDrawing(id);
     setConfirmDeleteId(null);
   }, [removeDrawing]);
 
-  const handleCreateFolder = useCallback(async () => {
+  const handleCreateFolder = useCallback(() => {
     if (newFolderName.trim()) {
-      setBusyFolderId('__creating__');
-      const folder = await createFolder(newFolderName.trim());
-      if (folder) {
-        setExpandedFolders((prev) => new Set([...prev, folder.id]));
-      }
-      setBusyFolderId(null);
+      createFolder(newFolderName.trim()).then((folder) => {
+        if (folder) {
+          setExpandedFolders((prev) => new Set([...prev, folder.id]));
+        }
+      });
     }
     setCreatingFolder(false);
     setNewFolderName('');
   }, [newFolderName, createFolder]);
 
-  const handleSaveFolderEdit = useCallback(async () => {
+  const handleSaveFolderEdit = useCallback(() => {
     if (editingFolderId && editFolderName.trim()) {
-      setBusyFolderId(editingFolderId);
-      await renameFolder(editingFolderId, editFolderName.trim());
-      setBusyFolderId(null);
+      renameFolder(editingFolderId, editFolderName.trim());
     }
     setEditingFolderId(null);
     setEditFolderName('');
   }, [editingFolderId, editFolderName, renameFolder]);
 
-  const handleDeleteFolder = useCallback(async (id: string) => {
-    setBusyFolderId(id);
-    await deleteFolder(id);
-    setBusyFolderId(null);
+  const handleDeleteFolder = useCallback((id: string) => {
+    deleteFolder(id);
     setConfirmDeleteFolderId(null);
   }, [deleteFolder]);
 
-  const handleMoveToFolder = useCallback(async (drawingId: string, folderId: string | null) => {
-    await moveDrawingToFolder(drawingId, folderId);
+  const handleMoveToFolder = useCallback((drawingId: string, folderId: string | null) => {
     setMovingDrawingId(null);
+    moveDrawingToFolder(drawingId, folderId);
   }, [moveDrawingToFolder]);
 
   const toggleFolder = useCallback((folderId: string) => {
@@ -493,9 +490,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             {isExpanded ? '▼' : '▶'}
           </span>
           <span style={{ fontSize: '16px', flexShrink: 0 }}>
-            {busyFolderId === folder.id
-              ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
-              : '📁'}
+            📁
           </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             {editingFolderId === folder.id ? (
@@ -704,9 +699,9 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                     border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '8px', outline: 'none',
                   }}
                 />
-                <button onClick={handleCreateFolder} disabled={busyFolderId === '__creating__'}
-                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', opacity: busyFolderId === '__creating__' ? 0.6 : 1 }}>
-                  {busyFolderId === '__creating__' ? '⏳' : t.save}
+                <button onClick={handleCreateFolder}
+                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                  {t.save}
                 </button>
                 <button onClick={() => { setCreatingFolder(false); setNewFolderName(''); }}
                   style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '8px', cursor: 'pointer', color: 'inherit' }}>
