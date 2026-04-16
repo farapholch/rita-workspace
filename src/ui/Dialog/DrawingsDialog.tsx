@@ -26,7 +26,7 @@ const ActionButton: React.FC<{
   primary?: boolean;
 }> = ({ icon, label, description, onClick, primary }) => (
   <button
-    onClick={onClick}
+    onClick={(e) => { e.stopPropagation(); onClick(); }}
     style={{
       display: 'flex',
       alignItems: 'center',
@@ -40,6 +40,7 @@ const ActionButton: React.FC<{
       textAlign: 'left',
       color: 'inherit',
       fontSize: '14px',
+      outline: 'none',
     }}
   >
     <span style={{ fontSize: '20px', flexShrink: 0 }}>{icon}</span>
@@ -617,7 +618,22 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         )}
 
         {/* Scrollable content */}
-        <div style={{ flex: 1, overflow: 'auto' }}>
+        <div
+          style={{ flex: 1, overflow: 'auto' }}
+          onClick={() => setSelectedId(null)}
+          onDragOver={(e) => {
+            if (!draggingDrawingId) return;
+            // Auto-scroll when dragging near edges
+            const el = e.currentTarget;
+            const rect = el.getBoundingClientRect();
+            const margin = 40;
+            if (e.clientY - rect.top < margin) {
+              el.scrollTop -= 8;
+            } else if (rect.bottom - e.clientY < margin) {
+              el.scrollTop += 8;
+            }
+          }}
+        >
 
           {/* === Drawings & Folders list === */}
           {isRefreshing && drawings.length === 0 ? (
