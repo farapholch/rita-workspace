@@ -260,10 +260,12 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     const filtered = query
       ? drawings.filter((d) => d.name.toLowerCase().includes(query))
       : drawings;
-    const root = filtered.filter((d) => !d.folderId);
+    // Sort by createdAt (stable order — not affected by auto-save updating updatedAt)
+    const sorted = [...filtered].sort((a, b) => a.createdAt - b.createdAt);
+    const root = sorted.filter((d) => !d.folderId);
     const byFolder: Record<string, Drawing[]> = {};
     for (const folder of folders) {
-      byFolder[folder.id] = filtered.filter((d) => d.folderId === folder.id);
+      byFolder[folder.id] = sorted.filter((d) => d.folderId === folder.id);
     }
     const foldersFiltered = query
       ? folders.filter((f) => f.name.toLowerCase().includes(query) || (byFolder[f.id] || []).length > 0)

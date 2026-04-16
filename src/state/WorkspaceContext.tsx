@@ -242,17 +242,24 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
   // When conflict resolves (true → false), reload drawing from DB
   // so we don't keep stale data from when the tab was read-only
+  // IMPORTANT: Never set activeDrawing to null here — that would cause
+  // App.tsx to lose track of the drawing and reload from DB, overwriting canvas
   useEffect(() => {
     const wasConflict = prevConflictRef.current;
     prevConflictRef.current = isDrawingConflict;
-    // Only reload if conflict genuinely resolved (was true, now false)
+    // Only reload if THIS tab was in conflict and it resolved
     if (wasConflict && !isDrawingConflict) {
       const id = activeDrawingIdRef.current;
       if (id) {
         getDrawing(id).then((fresh) => {
-          // Only update if still the same drawing
-          if (fresh && activeDrawingIdRef.current === id) {
-            setActiveDrawing(fresh);
+          // Only update if still the same drawing AND still no conflict
+          if (fresh && activeDrawingIdRef.current === id && !prevConflictRef.current) {
+            // Update metadata only (name, folderId, etc.) — don't replace elements
+            // to avoid overwriting unsaved canvas changes
+            setActiveDrawing((prev) => {
+              if (!prev || prev.id !== id) return prev;
+              return { ...prev, name: fresh.name, folderId: fresh.folderId };
+            });
           }
         });
       }
