@@ -243,22 +243,44 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   // When conflict resolves (true → false), reload drawing from DB
   // so we don't keep stale data from when the tab was read-only
   useEffect(() => {
-    if (prevConflictRef.current && !isDrawingConflict && activeDrawing?.id) {
-      getDrawing(activeDrawing.id).then((fresh) => {
-        if (fresh) {
-          setActiveDrawing(fresh);
-        }
-      });
-    }
+    const wasConflict = prevConflictRef.current;
     prevConflictRef.current = isDrawingConflict;
-  }, [isDrawingConflict, activeDrawing?.id]);
+    // Only reload if conflict genuinely resolved (was true, now false)
+    if (wasConflict && !isDrawingConflict) {
+      const id = activeDrawingIdRef.current;
+      if (id) {
+        getDrawing(id).then((fresh) => {
+          // Only update if still the same drawing
+          if (fresh && activeDrawingIdRef.current === id) {
+            setActiveDrawing(fresh);
+          }
+        });
+      }
+    }
+  }, [isDrawingConflict]);
+
+  // Always respond to pings from other tabs (must be mounted before cleanupStaleTabs runs)
+  useEffect(() => {
+    let channel: BroadcastChannel | null = null;
+    try {
+      channel = new BroadcastChannel(TAB_CHANNEL);
+      channel.onmessage = (event) => {
+        if (event.data?.type === 'ping') {
+          channel?.postMessage({ type: 'pong', tabId: TAB_ID });
+        }
+      };
+    } catch {
+      // BroadcastChannel not supported
+    }
+    return () => { channel?.close(); };
+  }, []);
 
   // Clean up stale tabs on mount, then recheck conflict
   useEffect(() => {
     cleanupStaleTabs();
     // Recheck conflict after cleanup finishes (500ms + margin)
     const timer = setTimeout(() => {
-      const drawingId = activeDrawing?.id;
+      const drawingId = activeDrawingIdRef.current;
       if (drawingId) {
         setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
       }
@@ -290,10 +312,6 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       channel.onmessage = (event) => {
         if (event.data?.tabId !== TAB_ID) {
-          // Respond to pings so other tabs know we're alive
-          if (event.data?.type === 'ping') {
-            channel?.postMessage({ type: 'pong', tabId: TAB_ID });
-          }
           recheckConflict();
         }
       };

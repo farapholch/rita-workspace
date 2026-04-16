@@ -224,6 +224,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
   const handleMoveToFolder = useCallback((drawingId: string, folderId: string | null) => {
     setMovingDrawingId(null);
+    setSelectedId(null);
     moveDrawingToFolder(drawingId, folderId);
   }, [moveDrawingToFolder]);
 
@@ -308,7 +309,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setDraggingDrawingId(null);
         setDropTargetFolderId(null);
       }}
-      onClick={() => {
+      onClick={(e) => {
+        e.stopPropagation();
         if (editingId || confirmDeleteId || movingDrawingId) return;
         setSelectedId(drawing.id);
       }}
@@ -452,29 +454,34 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     const isExpanded = expandedFolders.has(folder.id);
 
     return (
-      <div key={folder.id} style={{ marginBottom: '4px' }}>
+      <div
+        key={folder.id}
+        style={{ marginBottom: '4px' }}
+        onDragOver={(e) => {
+          if (!draggingDrawingId) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = 'move';
+          setDropTargetFolderId(folder.id);
+        }}
+        onDragLeave={(e) => {
+          // Only clear if leaving the folder group entirely (not entering a child)
+          if (!e.currentTarget.contains(e.relatedTarget as Node)) {
+            if (dropTargetFolderId === folder.id) setDropTargetFolderId(null);
+          }
+        }}
+        onDrop={(e) => {
+          e.preventDefault();
+          if (draggingDrawingId) {
+            handleMoveToFolder(draggingDrawingId, folder.id);
+            setDraggingDrawingId(null);
+            setDropTargetFolderId(null);
+            setExpandedFolders((prev) => new Set([...prev, folder.id]));
+          }
+        }}
+      >
         {/* Folder header */}
         <div
-          onClick={() => toggleFolder(folder.id)}
-          onDragOver={(e) => {
-            if (!draggingDrawingId) return;
-            e.preventDefault();
-            e.dataTransfer.dropEffect = 'move';
-            setDropTargetFolderId(folder.id);
-          }}
-          onDragLeave={() => {
-            if (dropTargetFolderId === folder.id) setDropTargetFolderId(null);
-          }}
-          onDrop={(e) => {
-            e.preventDefault();
-            if (draggingDrawingId) {
-              handleMoveToFolder(draggingDrawingId, folder.id);
-              setDraggingDrawingId(null);
-              setDropTargetFolderId(null);
-              // Auto-expand the target folder
-              setExpandedFolders((prev) => new Set([...prev, folder.id]));
-            }
-          }}
+          onClick={() => { toggleFolder(folder.id); setSelectedId(null); }}
           style={{
             padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px',
             borderRadius: '8px', cursor: 'pointer',
@@ -541,7 +548,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
         {/* Folder contents */}
         {isExpanded && (
-          <div style={{ paddingLeft: '24px', marginTop: '2px' }}>
+          <div style={{ paddingLeft: '24px', marginTop: '2px' }} onClick={() => setSelectedId(null)}>
             {folderDrawings.length === 0 && (
               <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-secondary-color, #888)', fontStyle: 'italic' }}>
                 {t.noDrawingsYet}
@@ -618,7 +625,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '24px' }}>⏳</span>
             </div>
           ) : (drawings.length > 0 || folders.length > 0) ? (
-            <div style={{ padding: '8px 20px 0' }}>
+            <div style={{ padding: '8px 20px 0' }} onClick={() => setSelectedId(null)}>
               {/* Folder groups */}
               {filteredFolders.map(renderFolderGroup)}
 
