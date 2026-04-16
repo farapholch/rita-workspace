@@ -306,8 +306,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       }}
       onDragEnd={() => {
         setDraggingDrawingId(null);
-        setDropTargetFolderId('__none__');
-        setTimeout(() => setDropTargetFolderId(null), 0);
+        setDropTargetFolderId(null);
       }}
       onClick={() => {
         if (editingId || confirmDeleteId || movingDrawingId) return;
