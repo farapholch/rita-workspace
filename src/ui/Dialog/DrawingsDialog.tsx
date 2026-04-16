@@ -5,7 +5,7 @@
  * Design by Johan.
  */
 
-import React, { useState, useCallback, useRef, useEffect } from 'react';
+import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react';
 import { useWorkspace } from '../../state/WorkspaceContext';
 import { getTranslations } from '../../i18n';
 import type { Drawing, Folder } from '../../storage/db';
@@ -253,20 +253,22 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
   if (!open) return null;
 
-  // Filter and group drawings by folder
-  const query = searchQuery.toLowerCase().trim();
-  const filteredDrawings = query
-    ? drawings.filter((d) => d.name.toLowerCase().includes(query))
-    : drawings;
-  const rootDrawings = filteredDrawings.filter((d) => !d.folderId);
-  const drawingsByFolder: Record<string, Drawing[]> = {};
-  for (const folder of folders) {
-    drawingsByFolder[folder.id] = filteredDrawings.filter((d) => d.folderId === folder.id);
-  }
-  // Also include folders whose name matches the search (show them even if empty)
-  const filteredFolders = query
-    ? folders.filter((f) => f.name.toLowerCase().includes(query) || (drawingsByFolder[f.id] || []).length > 0)
-    : folders;
+  // Filter and group drawings by folder (memoized)
+  const { rootDrawings, drawingsByFolder, filteredFolders } = useMemo(() => {
+    const query = searchQuery.toLowerCase().trim();
+    const filtered = query
+      ? drawings.filter((d) => d.name.toLowerCase().includes(query))
+      : drawings;
+    const root = filtered.filter((d) => !d.folderId);
+    const byFolder: Record<string, Drawing[]> = {};
+    for (const folder of folders) {
+      byFolder[folder.id] = filtered.filter((d) => d.folderId === folder.id);
+    }
+    const foldersFiltered = query
+      ? folders.filter((f) => f.name.toLowerCase().includes(query) || (byFolder[f.id] || []).length > 0)
+      : folders;
+    return { rootDrawings: root, drawingsByFolder: byFolder, filteredFolders: foldersFiltered };
+  }, [drawings, folders, searchQuery]);
 
   const dialogStyle: React.CSSProperties = position
     ? {

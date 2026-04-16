@@ -107,18 +107,28 @@ interface TabEntry {
   openedAt: number; // timestamp when this tab opened the drawing
 }
 
+// Cache for parsed tabs map — invalidated on every write
+let tabsMapCache: Record<string, TabEntry> | null = null;
+let tabsMapRaw: string | null = null;
+
 function getTabsMap(): Record<string, TabEntry> {
   try {
-    const raw = JSON.parse(localStorage.getItem(TABS_KEY) || '{}');
+    const raw = localStorage.getItem(TABS_KEY) || '{}';
+    // Return cached result if localStorage hasn't changed
+    if (raw === tabsMapRaw && tabsMapCache) return tabsMapCache;
+    tabsMapRaw = raw;
+
+    const parsed = JSON.parse(raw);
     // Migrate old format: { tabId: drawingId } → { tabId: { drawingId, openedAt } }
     const result: Record<string, TabEntry> = {};
-    for (const [tabId, value] of Object.entries(raw)) {
+    for (const [tabId, value] of Object.entries(parsed)) {
       if (typeof value === 'string') {
         result[tabId] = { drawingId: value, openedAt: 0 };
       } else if (value && typeof value === 'object' && 'drawingId' in (value as TabEntry)) {
         result[tabId] = value as TabEntry;
       }
     }
+    tabsMapCache = result;
     return result;
   } catch {
     return {};
@@ -138,7 +148,11 @@ function setTabDrawing(drawingId: string | null) {
   } else {
     delete tabs[TAB_ID];
   }
-  localStorage.setItem(TABS_KEY, JSON.stringify(tabs));
+  const json = JSON.stringify(tabs);
+  localStorage.setItem(TABS_KEY, json);
+  // Invalidate cache since we wrote
+  tabsMapCache = tabs;
+  tabsMapRaw = json;
 }
 
 /**
@@ -315,12 +329,17 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [workspace]);
 
+  const drawingsRef = useRef(drawings);
+  drawingsRef.current = drawings;
+  const activeDrawingIdRef = useRef(activeDrawing?.id ?? null);
+  activeDrawingIdRef.current = activeDrawing?.id ?? null;
+
   const createNewDrawing = useCallback(async (name?: string, folderId?: string | null): Promise<Drawing | null> => {
     if (!workspace) return null;
 
     try {
       // Use translated default name
-      const defaultName = `${t.newDrawing} ${drawings.length + 1}`;
+      const defaultName = `${t.newDrawing} ${drawingsRef.current.length + 1}`;
       const drawing = await createDrawing(name || defaultName, [], {}, folderId);
       await addDrawingToWorkspace(workspace.id, drawing.id);
 
@@ -338,7 +357,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       setError(err instanceof Error ? err.message : 'Failed to create drawing');
       return null;
     }
-  }, [workspace, drawings.length, t]);
+  }, [workspace, t]);
 
   const switchDrawing = useCallback(async (id: string): Promise<void> => {
     if (!workspace) return;
@@ -360,17 +379,17 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const updated = await updateDrawing(id, { name });
       if (updated) {
         setDrawings((prev) => prev.map((d) => (d.id === id ? updated : d)));
-        if (activeDrawing?.id === id) {
+        if (activeDrawingIdRef.current === id) {
           setActiveDrawing(updated);
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to rename drawing');
     }
-  }, [activeDrawing]);
+  }, []);
 
   const removeDrawing = useCallback(async (id: string): Promise<void> => {
-    if (!workspace || drawings.length <= 1) return;
+    if (!workspace || drawingsRef.current.length <= 1) return;
 
     try {
       await deleteDrawing(id);
@@ -380,7 +399,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       if (updatedWorkspace) {
         setWorkspace(updatedWorkspace);
-        if (activeDrawing?.id === id && updatedWorkspace.activeDrawingId) {
+        if (activeDrawingIdRef.current === id && updatedWorkspace.activeDrawingId) {
           const newActive = await getDrawing(updatedWorkspace.activeDrawingId);
           setActiveDrawing(newActive || null);
         }
@@ -388,13 +407,13 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to delete drawing');
     }
-  }, [workspace, drawings.length, activeDrawing]);
+  }, [workspace]);
 
   const duplicateCurrentDrawing = useCallback(async (): Promise<Drawing | null> => {
-    if (!activeDrawing || !workspace) return null;
+    if (!activeDrawingIdRef.current || !workspace) return null;
 
     try {
-      const duplicate = await duplicateDrawing(activeDrawing.id);
+      const duplicate = await duplicateDrawing(activeDrawingIdRef.current);
       if (duplicate) {
         await addDrawingToWorkspace(workspace.id, duplicate.id);
         setDrawings((prev) => [...prev, duplicate]);
@@ -409,7 +428,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       setError(err instanceof Error ? err.message : 'Failed to duplicate drawing');
       return null;
     }
-  }, [activeDrawing, workspace]);
+  }, [workspace]);
 
   const saveCurrentDrawing = useCallback(async (
     elements: unknown[],
@@ -640,14 +659,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const updated = await moveDrawingToFolderStore(drawingId, folderId);
       if (updated) {
         setDrawings((prev) => prev.map((d) => (d.id === drawingId ? updated : d)));
-        if (activeDrawing?.id === drawingId) {
+        if (activeDrawingIdRef.current === drawingId) {
           setActiveDrawing(updated);
         }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to move drawing');
     }
-  }, [activeDrawing]);
+  }, []);
 
   const value: WorkspaceContextValue = {
     workspace,
