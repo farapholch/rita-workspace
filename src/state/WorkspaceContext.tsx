@@ -328,9 +328,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     };
     window.addEventListener('storage', onStorage);
 
+    // Periodic recheck — catches cases where beforeunload didn't fire
+    // (e.g., browser crash, force close, or Playwright page.close())
+    const intervalId = setInterval(recheckConflict, 5000);
+
     return () => {
       channel?.close();
       window.removeEventListener('storage', onStorage);
+      clearInterval(intervalId);
     };
   }, [activeDrawing?.id]);
 
