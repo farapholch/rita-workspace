@@ -8,7 +8,7 @@
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { useWorkspace } from '../../state/WorkspaceContext';
 import { getTranslations } from '../../i18n';
-import type { Drawing } from '../../storage/db';
+import type { Drawing, Folder } from '../../storage/db';
 
 export interface DrawingsDialogProps {
   open: boolean;
@@ -61,11 +61,16 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 }) => {
   const {
     drawings,
+    folders,
     activeDrawing,
     switchDrawing,
     createNewDrawing,
     renameDrawing,
     removeDrawing,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveDrawingToFolder,
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
@@ -83,25 +88,45 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
   const [switchingId, setSwitchingId] = useState<string | null>(null);
 
+  // Folder UI state
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
+  const [editFolderName, setEditFolderName] = useState('');
+  const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
+  const [movingDrawingId, setMovingDrawingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
+
   // Dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
+  const newFolderInputRef = useRef<HTMLInputElement>(null);
 
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open) {
       refreshDrawings();
-      // Only reset position when dialog first opens, not on re-renders
       if (!prevOpenRef.current) {
         setPosition(null);
+        setSearchQuery('');
+        // Expand all folders by default on first open
+        setExpandedFolders(new Set(folders.map((f) => f.id)));
       }
     }
     prevOpenRef.current = open;
-  }, [open, refreshDrawings]);
+  }, [open, refreshDrawings, folders]);
+
+  useEffect(() => {
+    if (creatingFolder && newFolderInputRef.current) {
+      newFolderInputRef.current.focus();
+    }
+  }, [creatingFolder]);
 
   const handleMouseDown = useCallback((e: React.MouseEvent) => {
     if ((e.target as HTMLElement).closest('button')) return;
+    if ((e.target as HTMLElement).closest('input')) return;
     if (!dialogRef.current) return;
     const rect = dialogRef.current.getBoundingClientRect();
     const currentX = position?.x ?? rect.left;
@@ -132,8 +157,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     setSwitchingId(null);
   }, [switchDrawing, onDrawingSelect]);
 
-  const handleCreate = useCallback(async () => {
-    const newDrawing = await createNewDrawing();
+  const handleCreate = useCallback(async (folderId?: string | null) => {
+    const newDrawing = await createNewDrawing(undefined, folderId);
     if (newDrawing) onDrawingSelect?.(newDrawing);
   }, [createNewDrawing, onDrawingSelect]);
 
@@ -160,6 +185,47 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     setConfirmDeleteId(null);
   }, [removeDrawing]);
 
+  const handleCreateFolder = useCallback(async () => {
+    if (newFolderName.trim()) {
+      const folder = await createFolder(newFolderName.trim());
+      if (folder) {
+        setExpandedFolders((prev) => new Set([...prev, folder.id]));
+      }
+    }
+    setCreatingFolder(false);
+    setNewFolderName('');
+  }, [newFolderName, createFolder]);
+
+  const handleSaveFolderEdit = useCallback(async () => {
+    if (editingFolderId && editFolderName.trim()) {
+      await renameFolder(editingFolderId, editFolderName.trim());
+    }
+    setEditingFolderId(null);
+    setEditFolderName('');
+  }, [editingFolderId, editFolderName, renameFolder]);
+
+  const handleDeleteFolder = useCallback(async (id: string) => {
+    await deleteFolder(id);
+    setConfirmDeleteFolderId(null);
+  }, [deleteFolder]);
+
+  const handleMoveToFolder = useCallback(async (drawingId: string, folderId: string | null) => {
+    await moveDrawingToFolder(drawingId, folderId);
+    setMovingDrawingId(null);
+  }, [moveDrawingToFolder]);
+
+  const toggleFolder = useCallback((folderId: string) => {
+    setExpandedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderId)) {
+        next.delete(folderId);
+      } else {
+        next.add(folderId);
+      }
+      return next;
+    });
+  }, []);
+
   const getLocale = () => {
     if (!effectiveLang) return 'en-US';
     const baseLang = effectiveLang.split('-')[0].toLowerCase();
@@ -173,6 +239,21 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   };
 
   if (!open) return null;
+
+  // Filter and group drawings by folder
+  const query = searchQuery.toLowerCase().trim();
+  const filteredDrawings = query
+    ? drawings.filter((d) => d.name.toLowerCase().includes(query))
+    : drawings;
+  const rootDrawings = filteredDrawings.filter((d) => !d.folderId);
+  const drawingsByFolder: Record<string, Drawing[]> = {};
+  for (const folder of folders) {
+    drawingsByFolder[folder.id] = filteredDrawings.filter((d) => d.folderId === folder.id);
+  }
+  // Also include folders whose name matches the search (show them even if empty)
+  const filteredFolders = query
+    ? folders.filter((f) => f.name.toLowerCase().includes(query) || (drawingsByFolder[f.id] || []).length > 0)
+    : folders;
 
   const dialogStyle: React.CSSProperties = position
     ? {
@@ -196,6 +277,218 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     letterSpacing: '0.5px',
     color: 'var(--text-secondary-color, #888)',
     padding: '16px 20px 8px',
+  };
+
+  // Render a single drawing row
+  const renderDrawingRow = (drawing: Drawing) => (
+    <div
+      key={drawing.id}
+      onClick={() => {
+        if (editingId || confirmDeleteId || switchingId || movingDrawingId) return;
+        if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
+      }}
+      style={{
+        padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
+        borderRadius: '8px', marginBottom: '4px',
+        cursor: editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
+        backgroundColor: activeDrawing?.id === drawing.id
+          ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
+        transition: 'background-color 0.15s',
+        opacity: switchingId && switchingId !== drawing.id ? 0.5 : 1,
+      }}
+    >
+      {renderThumbnail && (
+        <div style={{
+          width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',
+          overflow: 'hidden', border: '1px solid var(--default-border-color, #e0e0e0)',
+          backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
+        }}>
+          {renderThumbnail(drawing)}
+        </div>
+      )}
+      <div style={{ flex: 1, minWidth: 0 }}>
+        {editingId === drawing.id ? (
+          <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+            <input
+              type="text" value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit(); }}
+              onClick={(e) => e.stopPropagation()}
+              autoFocus
+              style={{
+                flex: 1, padding: '4px 8px', fontSize: '14px',
+                border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '4px', outline: 'none',
+              }}
+            />
+            <button onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }}
+              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              {t.save}
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }}
+              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
+              {t.cancel}
+            </button>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span
+                onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
+                style={{
+                  fontWeight: activeDrawing?.id === drawing.id ? 600 : 400,
+                  fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis',
+                  whiteSpace: 'nowrap', cursor: 'text',
+                }}
+                title={t.rename}
+              >
+                {switchingId === drawing.id
+                  ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '4px' }}>⏳</span>
+                  : activeDrawing?.id === drawing.id ? '✓ ' : ''
+                }
+                {drawing.name}
+              </span>
+              <button
+                onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: '12px', opacity: 0.4, flexShrink: 0 }}
+                title={t.rename}
+              >✏️</button>
+            </div>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary-color, #888)', marginTop: '1px' }}>
+              {t.modified}: {formatDate(drawing.updatedAt)}
+            </div>
+          </>
+        )}
+      </div>
+      {/* Row actions */}
+      <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
+        {confirmDeleteId === drawing.id ? (
+          <>
+            <button onClick={(e) => { e.stopPropagation(); handleDelete(drawing.id); }}
+              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+              {t.delete}
+            </button>
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
+              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
+              {t.cancel}
+            </button>
+          </>
+        ) : movingDrawingId === drawing.id ? (
+          <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
+            <button onClick={() => handleMoveToFolder(drawing.id, null)}
+              style={{ padding: '3px 8px', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', backgroundColor: !drawing.folderId ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent', color: 'inherit', textAlign: 'left' }}>
+              {t.moveToRoot}
+            </button>
+            {folders.map((folder) => (
+              <button key={folder.id} onClick={() => handleMoveToFolder(drawing.id, folder.id)}
+                style={{ padding: '3px 8px', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', backgroundColor: drawing.folderId === folder.id ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent', color: 'inherit', textAlign: 'left' }}>
+                📁 {folder.name}
+              </button>
+            ))}
+            <button onClick={() => setMovingDrawingId(null)}
+              style={{ padding: '3px 8px', border: 'none', cursor: 'pointer', backgroundColor: 'transparent', color: 'var(--text-secondary-color, #888)', textAlign: 'left' }}>
+              {t.cancel}
+            </button>
+          </div>
+        ) : editingId !== drawing.id && (
+          <>
+            {folders.length > 0 && (
+              <button onClick={(e) => { e.stopPropagation(); setMovingDrawingId(drawing.id); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
+                title={t.moveToFolder}>📁</button>
+            )}
+            <button onClick={(e) => { e.stopPropagation(); exportDrawingAsExcalidraw(drawing.id); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
+              title={t.exportDrawing}>💾</button>
+            <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(drawing.id); }}
+              style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
+              title={t.delete} disabled={drawings.length <= 1}>🗑️</button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+
+  // Render a folder group
+  const renderFolderGroup = (folder: Folder) => {
+    const folderDrawings = drawingsByFolder[folder.id] || [];
+    const isExpanded = expandedFolders.has(folder.id);
+
+    return (
+      <div key={folder.id} style={{ marginBottom: '4px' }}>
+        {/* Folder header */}
+        <div
+          onClick={() => toggleFolder(folder.id)}
+          style={{
+            padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px',
+            borderRadius: '8px', cursor: 'pointer',
+            backgroundColor: 'var(--color-surface-mid, rgba(0, 0, 0, 0.03))',
+          }}
+        >
+          <span style={{ fontSize: '12px', width: '16px', textAlign: 'center', flexShrink: 0 }}>
+            {isExpanded ? '▼' : '▶'}
+          </span>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>📁</span>
+          <div style={{ flex: 1, minWidth: 0 }}>
+            {editingFolderId === folder.id ? (
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
+                <input
+                  type="text" value={editFolderName}
+                  onChange={(e) => setEditFolderName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleSaveFolderEdit(); if (e.key === 'Escape') { setEditingFolderId(null); setEditFolderName(''); } }}
+                  autoFocus
+                  style={{ flex: 1, padding: '2px 6px', fontSize: '14px', border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '4px', outline: 'none' }}
+                />
+                <button onClick={handleSaveFolderEdit}
+                  style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                  {t.save}
+                </button>
+              </div>
+            ) : (
+              <span style={{ fontWeight: 600, fontSize: '14px' }}>
+                {folder.name}
+                <span style={{ fontWeight: 400, fontSize: '12px', color: 'var(--text-secondary-color, #888)', marginLeft: '6px' }}>
+                  ({folderDrawings.length})
+                </span>
+              </span>
+            )}
+          </div>
+          {/* Folder actions */}
+          {confirmDeleteFolderId === folder.id ? (
+            <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '4px' }}>
+              <button onClick={() => handleDeleteFolder(folder.id)}
+                style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
+                {t.delete}
+              </button>
+              <button onClick={() => setConfirmDeleteFolderId(null)}
+                style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
+                {t.cancel}
+              </button>
+            </div>
+          ) : editingFolderId !== folder.id && (
+            <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '2px' }}>
+              <button onClick={() => { setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '12px', opacity: 0.5 }}
+                title={t.renameFolder}>✏️</button>
+              <button onClick={() => setConfirmDeleteFolderId(folder.id)}
+                style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '12px', opacity: 0.5 }}
+                title={t.deleteFolder}>🗑️</button>
+            </div>
+          )}
+        </div>
+
+        {/* Folder contents */}
+        {isExpanded && (
+          <div style={{ paddingLeft: '24px', marginTop: '2px' }}>
+            {folderDrawings.length === 0 && (
+              <div style={{ padding: '8px 12px', fontSize: '12px', color: 'var(--text-secondary-color, #888)', fontStyle: 'italic' }}>
+                {t.noDrawingsYet}
+              </div>
+            )}
+            {folderDrawings.map(renderDrawingRow)}
+          </div>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -235,121 +528,39 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           </button>
         </div>
 
+        {/* Search */}
+        {drawings.length > 3 && (
+          <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--default-border-color, #e0e0e0)' }}>
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="🔍"
+              style={{
+                width: '100%', padding: '6px 12px', fontSize: '14px',
+                border: '1px solid var(--default-border-color, #e0e0e0)', borderRadius: '6px',
+                outline: 'none', backgroundColor: 'transparent', color: 'inherit',
+                boxSizing: 'border-box',
+              }}
+            />
+          </div>
+        )}
+
         {/* Scrollable content */}
         <div style={{ flex: 1, overflow: 'auto' }}>
 
-          {/* === Drawings list === */}
-          {drawings.length > 0 && (
+          {/* === Drawings & Folders list === */}
+          {(drawings.length > 0 || folders.length > 0) && (
             <div style={{ padding: '8px 20px 0' }}>
-              {drawings.map((drawing) => (
-                <div
-                  key={drawing.id}
-                  onClick={() => {
-                    if (editingId || confirmDeleteId || switchingId) return;
-                    if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
-                  }}
-                  style={{
-                    padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
-                    borderRadius: '8px', marginBottom: '4px',
-                    cursor: editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
-                    backgroundColor: activeDrawing?.id === drawing.id
-                      ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
-                    transition: 'background-color 0.15s',
-                    opacity: switchingId && switchingId !== drawing.id ? 0.5 : 1,
-                  }}
-                >
-                  {renderThumbnail && (
-                    <div style={{
-                      width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',
-                      overflow: 'hidden', border: '1px solid var(--default-border-color, #e0e0e0)',
-                      backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    }}>
-                      {renderThumbnail(drawing)}
-                    </div>
-                  )}
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    {editingId === drawing.id ? (
-                      <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                        <input
-                          type="text" value={editName}
-                          onChange={(e) => setEditName(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === 'Enter') handleSaveEdit(); if (e.key === 'Escape') handleCancelEdit(); }}
-                          onClick={(e) => e.stopPropagation()}
-                          autoFocus
-                          style={{
-                            flex: 1, padding: '4px 8px', fontSize: '14px',
-                            border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '4px', outline: 'none',
-                          }}
-                        />
-                        <button onClick={(e) => { e.stopPropagation(); handleSaveEdit(); }}
-                          style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                          {t.save}
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); handleCancelEdit(); }}
-                          style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
-                          {t.cancel}
-                        </button>
-                      </div>
-                    ) : (
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                          <span
-                            onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
-                            style={{
-                              fontWeight: activeDrawing?.id === drawing.id ? 600 : 400,
-                              fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis',
-                              whiteSpace: 'nowrap', cursor: 'text',
-                            }}
-                            title={t.rename}
-                          >
-                            {switchingId === drawing.id
-                              ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', marginRight: '4px' }}>⏳</span>
-                              : activeDrawing?.id === drawing.id ? '✓ ' : ''
-                            }
-                            {drawing.name}
-                          </span>
-                          <button
-                            onClick={(e) => { e.stopPropagation(); handleStartEdit(drawing); }}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '0 2px', fontSize: '12px', opacity: 0.4, flexShrink: 0 }}
-                            title={t.rename}
-                          >✏️</button>
-                        </div>
-                        <div style={{ fontSize: '11px', color: 'var(--text-secondary-color, #888)', marginTop: '1px' }}>
-                          {t.modified}: {formatDate(drawing.updatedAt)}
-                        </div>
-                      </>
-                    )}
-                  </div>
-                  {/* Row actions */}
-                  <div style={{ display: 'flex', gap: '2px' }}>
-                    {confirmDeleteId === drawing.id ? (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); handleDelete(drawing.id); }}
-                          style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                          {t.delete}
-                        </button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-                          style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
-                          {t.cancel}
-                        </button>
-                      </>
-                    ) : editingId !== drawing.id && (
-                      <>
-                        <button onClick={(e) => { e.stopPropagation(); exportDrawingAsExcalidraw(drawing.id); }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
-                          title={t.exportDrawing}>💾</button>
-                        <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(drawing.id); }}
-                          style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
-                          title={t.delete} disabled={drawings.length <= 1}>🗑️</button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+              {/* Folder groups */}
+              {filteredFolders.map(renderFolderGroup)}
+
+              {/* Root-level drawings (no folder) */}
+              {rootDrawings.map(renderDrawingRow)}
             </div>
           )}
 
-          {drawings.length === 0 && (
+          {drawings.length === 0 && folders.length === 0 && (
             <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text-secondary-color, #666)' }}>
               <p>{t.noDrawingsYet}</p>
               <p>{t.clickNewToStart}</p>
@@ -363,7 +574,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               icon="📄"
               label={t.createNewDrawing}
               description={t.createNewDrawingDesc}
-              onClick={handleCreate}
+              onClick={() => handleCreate()}
               primary
             />
             <ActionButton
@@ -372,6 +583,38 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               description={t.openFromFileDesc}
               onClick={importExcalidrawFile}
             />
+            {/* Create folder */}
+            {creatingFolder ? (
+              <div style={{ display: 'flex', gap: '8px', alignItems: 'center', padding: '4px 0' }}>
+                <input
+                  ref={newFolderInputRef}
+                  type="text"
+                  value={newFolderName}
+                  onChange={(e) => setNewFolderName(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === 'Enter') handleCreateFolder(); if (e.key === 'Escape') { setCreatingFolder(false); setNewFolderName(''); } }}
+                  placeholder={t.newFolderName}
+                  style={{
+                    flex: 1, padding: '8px 12px', fontSize: '14px',
+                    border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '8px', outline: 'none',
+                  }}
+                />
+                <button onClick={handleCreateFolder}
+                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
+                  {t.save}
+                </button>
+                <button onClick={() => { setCreatingFolder(false); setNewFolderName(''); }}
+                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '8px', cursor: 'pointer', color: 'inherit' }}>
+                  {t.cancel}
+                </button>
+              </div>
+            ) : (
+              <ActionButton
+                icon="📁"
+                label={t.createFolder}
+                description=""
+                onClick={() => setCreatingFolder(true)}
+              />
+            )}
           </div>
 
           {/* === Section: Hela arbetsytan === */}

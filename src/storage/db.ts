@@ -3,9 +3,17 @@ import { openDB, DBSchema, IDBPDatabase } from 'idb';
 export interface Drawing {
   id: string;
   name: string;
+  folderId?: string | null;
   elements: unknown[];
   appState: Record<string, unknown>;
   files: Record<string, unknown>;
+  createdAt: number;
+  updatedAt: number;
+}
+
+export interface Folder {
+  id: string;
+  name: string;
   createdAt: number;
   updatedAt: number;
 }
@@ -30,10 +38,15 @@ interface RitaWorkspaceDB extends DBSchema {
     value: Drawing;
     indexes: { 'by-updated': number };
   };
+  folders: {
+    key: string;
+    value: Folder;
+    indexes: { 'by-name': string };
+  };
 }
 
 const DB_NAME = 'rita-workspace';
-const DB_VERSION = 1;
+const DB_VERSION = 2;
 
 let dbInstance: IDBPDatabase<RitaWorkspaceDB> | null = null;
 
@@ -41,17 +54,22 @@ export async function getDB(): Promise<IDBPDatabase<RitaWorkspaceDB>> {
   if (dbInstance) return dbInstance;
 
   dbInstance = await openDB<RitaWorkspaceDB>(DB_NAME, DB_VERSION, {
-    upgrade(db) {
-      // Workspaces store
+    upgrade(db, oldVersion) {
+      // === Version 1: workspaces + drawings ===
       if (!db.objectStoreNames.contains('workspaces')) {
         const workspaceStore = db.createObjectStore('workspaces', { keyPath: 'id' });
         workspaceStore.createIndex('by-updated', 'updatedAt');
       }
 
-      // Drawings store
       if (!db.objectStoreNames.contains('drawings')) {
         const drawingStore = db.createObjectStore('drawings', { keyPath: 'id' });
         drawingStore.createIndex('by-updated', 'updatedAt');
+      }
+
+      // === Version 2: folders ===
+      if (oldVersion < 2) {
+        const folderStore = db.createObjectStore('folders', { keyPath: 'id' });
+        folderStore.createIndex('by-name', 'name');
       }
     },
   });

@@ -48,6 +48,15 @@ export interface Translations {
   exportDrawing: string;
   importDrawing: string;
 
+  // Folders
+  createFolder: string;
+  renameFolder: string;
+  deleteFolder: string;
+  deleteFolderConfirm: string;
+  moveToFolder: string;
+  moveToRoot: string;
+  newFolderName: string;
+
   // Shortcuts
   shortcutNewDrawing: string;
 }
@@ -94,6 +103,15 @@ const sv: Translations = {
   exportDrawing: 'Spara som .excalidraw',
   importDrawing: 'Öppna .excalidraw',
 
+  // Folders
+  createFolder: 'Skapa mapp',
+  renameFolder: 'Byt namn på mapp',
+  deleteFolder: 'Ta bort mapp',
+  deleteFolderConfirm: 'Vill du ta bort denna mapp? Ritningarna flyttas till rotnivån.',
+  moveToFolder: 'Flytta till mapp',
+  moveToRoot: 'Ingen mapp',
+  newFolderName: 'Ny mapp',
+
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
 };
@@ -139,6 +157,15 @@ const en: Translations = {
   importWorkspace: 'Import workspace',
   exportDrawing: 'Save as .excalidraw',
   importDrawing: 'Open .excalidraw',
+
+  // Folders
+  createFolder: 'Create folder',
+  renameFolder: 'Rename folder',
+  deleteFolder: 'Delete folder',
+  deleteFolderConfirm: 'Delete this folder? Drawings will be moved to root.',
+  moveToFolder: 'Move to folder',
+  moveToRoot: 'No folder',
+  newFolderName: 'New folder',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',

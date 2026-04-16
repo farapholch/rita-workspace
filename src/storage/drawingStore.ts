@@ -4,7 +4,8 @@ import { getDB, Drawing } from './db';
 export async function createDrawing(
   name: string = 'Untitled',
   elements: unknown[] = [],
-  appState: Record<string, unknown> = {}
+  appState: Record<string, unknown> = {},
+  folderId?: string | null
 ): Promise<Drawing> {
   const db = await getDB();
   const now = Date.now();
@@ -12,6 +13,7 @@ export async function createDrawing(
   const drawing: Drawing = {
     id: nanoid(),
     name,
+    folderId: folderId || null,
     elements,
     appState,
     files: {},
@@ -70,6 +72,14 @@ export async function duplicateDrawing(id: string, newName?: string): Promise<Dr
   return createDrawing(
     newName || `${existing.name} (copy)`,
     existing.elements,
-    existing.appState
+    existing.appState,
+    existing.folderId
   );
+}
+
+export async function moveDrawingToFolder(
+  drawingId: string,
+  folderId: string | null
+): Promise<Drawing | undefined> {
+  return updateDrawing(drawingId, { folderId });
 }

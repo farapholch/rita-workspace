@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useEffect, useRef, useState, useCallback, ReactNode } from 'react';
 import {
   Drawing,
+  Folder,
   Workspace,
   getOrCreateDefaultWorkspace,
   getDrawing,
@@ -9,8 +10,13 @@ import {
   updateDrawing,
   deleteDrawing,
   duplicateDrawing,
+  moveDrawingToFolder as moveDrawingToFolderStore,
   addDrawingToWorkspace,
   removeDrawingFromWorkspace,
+  getAllFolders,
+  createFolder as createFolderStore,
+  renameFolder as renameFolderStore,
+  deleteFolder as deleteFolderStore,
 } from '../storage';
 import { getTranslations, type Translations } from '../i18n';
 
@@ -18,6 +24,7 @@ export interface WorkspaceContextValue {
   // State
   workspace: Workspace | null;
   drawings: Drawing[];
+  folders: Folder[];
   activeDrawing: Drawing | null;
   isLoading: boolean;
   error: string | null;
@@ -28,11 +35,17 @@ export interface WorkspaceContextValue {
   t: Translations;
 
   // Actions
-  createNewDrawing: (name?: string) => Promise<Drawing | null>;
+  createNewDrawing: (name?: string, folderId?: string | null) => Promise<Drawing | null>;
   switchDrawing: (id: string) => Promise<void>;
   renameDrawing: (id: string, name: string) => Promise<void>;
   removeDrawing: (id: string) => Promise<void>;
   duplicateCurrentDrawing: () => Promise<Drawing | null>;
+
+  // Folder actions
+  createFolder: (name: string) => Promise<Folder | null>;
+  renameFolder: (id: string, name: string) => Promise<void>;
+  deleteFolder: (id: string) => Promise<void>;
+  moveDrawingToFolder: (drawingId: string, folderId: string | null) => Promise<void>;
 
   // For Excalidraw integration
   saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
@@ -149,6 +162,7 @@ function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
 export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
+  const [folders, setFolders] = useState<Folder[]>([]);
   const [activeDrawing, setActiveDrawing] = useState<Drawing | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -247,6 +261,9 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         const wsDrawings = allDrawings.filter((d) => ws.drawingIds.includes(d.id));
         setDrawings(wsDrawings);
 
+        const allFolders = await getAllFolders();
+        setFolders(allFolders);
+
         // Determine which drawing to open in this tab:
         // 1. This tab's last drawing (survives page refresh via sessionStorage)
         // 2. First drawing in the list (fallback)
@@ -289,19 +306,22 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const allDrawings = await getAllDrawings();
       const wsDrawings = allDrawings.filter((d) => workspace.drawingIds.includes(d.id));
       setDrawings(wsDrawings);
+
+      const allFolders = await getAllFolders();
+      setFolders(allFolders);
       // Don't change activeDrawing here — each tab manages its own active drawing
     } catch (err) {
       // silent refresh
     }
   }, [workspace]);
 
-  const createNewDrawing = useCallback(async (name?: string): Promise<Drawing | null> => {
+  const createNewDrawing = useCallback(async (name?: string, folderId?: string | null): Promise<Drawing | null> => {
     if (!workspace) return null;
 
     try {
       // Use translated default name
       const defaultName = `${t.newDrawing} ${drawings.length + 1}`;
-      const drawing = await createDrawing(name || defaultName);
+      const drawing = await createDrawing(name || defaultName, [], {}, folderId);
       await addDrawingToWorkspace(workspace.id, drawing.id);
 
       setDrawings((prev) => [...prev, drawing]);
@@ -582,9 +602,57 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [workspace, t]);
 
+  const createFolder = useCallback(async (name: string): Promise<Folder | null> => {
+    try {
+      const folder = await createFolderStore(name);
+      setFolders((prev) => [...prev, folder]);
+      return folder;
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create folder');
+      return null;
+    }
+  }, []);
+
+  const renameFolder = useCallback(async (id: string, name: string): Promise<void> => {
+    try {
+      const updated = await renameFolderStore(id, name);
+      if (updated) {
+        setFolders((prev) => prev.map((f) => (f.id === id ? updated : f)));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to rename folder');
+    }
+  }, []);
+
+  const deleteFolder = useCallback(async (id: string): Promise<void> => {
+    try {
+      await deleteFolderStore(id);
+      setFolders((prev) => prev.filter((f) => f.id !== id));
+      // Drawings in the folder are moved to root — refresh to get updated folderId
+      setDrawings((prev) => prev.map((d) => d.folderId === id ? { ...d, folderId: null } : d));
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete folder');
+    }
+  }, []);
+
+  const moveDrawingToFolder = useCallback(async (drawingId: string, folderId: string | null): Promise<void> => {
+    try {
+      const updated = await moveDrawingToFolderStore(drawingId, folderId);
+      if (updated) {
+        setDrawings((prev) => prev.map((d) => (d.id === drawingId ? updated : d)));
+        if (activeDrawing?.id === drawingId) {
+          setActiveDrawing(updated);
+        }
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to move drawing');
+    }
+  }, [activeDrawing]);
+
   const value: WorkspaceContextValue = {
     workspace,
     drawings,
+    folders,
     activeDrawing,
     isLoading,
     error,
@@ -596,6 +664,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     renameDrawing,
     removeDrawing,
     duplicateCurrentDrawing,
+    createFolder,
+    renameFolder,
+    deleteFolder,
+    moveDrawingToFolder,
     saveCurrentDrawing,
     saveDrawingById,
     refreshDrawings,
