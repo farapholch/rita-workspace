@@ -309,14 +309,10 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setDropTargetFolderId('__none__');
         setTimeout(() => setDropTargetFolderId(null), 0);
       }}
-      onClick={() => {
-        if (editingId || confirmDeleteId || switchingId || movingDrawingId) return;
-        if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
-      }}
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
-        cursor: draggingDrawingId ? 'grabbing' : editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
+        cursor: draggingDrawingId ? 'grabbing' : 'default',
         backgroundColor: activeDrawing?.id === drawing.id
           ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
         transition: 'background-color 0.15s',
@@ -417,6 +413,14 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           </div>
         ) : editingId !== drawing.id && (
           <>
+            {activeDrawing?.id !== drawing.id && (
+              <button onClick={(e) => { e.stopPropagation(); handleSelect(drawing); }}
+                disabled={!!switchingId}
+                style={{ padding: '3px 8px', fontSize: '12px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer', opacity: switchingId ? 0.6 : 1 }}
+                title={t.open}>
+                {switchingId === drawing.id ? '⏳' : t.open}
+              </button>
+            )}
             {folders.length > 0 && (
               <button onClick={(e) => { e.stopPropagation(); setMovingDrawingId(drawing.id); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}

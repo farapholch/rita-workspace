@@ -173,6 +173,63 @@ function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
   );
 }
 
+// Clean up stale tab entries on load by pinging other tabs
+function cleanupStaleTabs() {
+  const tabs = getTabsMap();
+  const otherTabIds = Object.keys(tabs).filter((id) => id !== TAB_ID);
+  if (otherTabIds.length === 0) return;
+
+  const alive = new Set<string>();
+
+  try {
+    const channel = new BroadcastChannel(TAB_CHANNEL);
+
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'pong' && event.data?.tabId) {
+        alive.add(event.data.tabId);
+      }
+    };
+
+    channel.postMessage({ type: 'ping', tabId: TAB_ID });
+
+    // After a short wait, remove tabs that didn't respond
+    setTimeout(() => {
+      const currentTabs = getTabsMap();
+      let changed = false;
+      for (const tabId of otherTabIds) {
+        if (!alive.has(tabId) && tabId in currentTabs) {
+          delete currentTabs[tabId];
+          changed = true;
+        }
+      }
+      if (changed) {
+        const json = JSON.stringify(currentTabs);
+        localStorage.setItem(TABS_KEY, json);
+        tabsMapCache = currentTabs;
+        tabsMapRaw = json;
+      }
+      channel.close();
+    }, 500);
+  } catch {
+    // BroadcastChannel not supported — fall back to time-based cleanup
+    const now = Date.now();
+    const maxAge = 24 * 60 * 60 * 1000; // 24 hours
+    let changed = false;
+    for (const [tabId, entry] of Object.entries(tabs)) {
+      if (tabId !== TAB_ID && entry.openedAt < now - maxAge) {
+        delete tabs[tabId];
+        changed = true;
+      }
+    }
+    if (changed) {
+      const json = JSON.stringify(tabs);
+      localStorage.setItem(TABS_KEY, json);
+      tabsMapCache = tabs;
+      tabsMapRaw = json;
+    }
+  }
+}
+
 export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderProps) {
   const [workspace, setWorkspace] = useState<Workspace | null>(null);
   const [drawings, setDrawings] = useState<Drawing[]>([]);
@@ -195,6 +252,19 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
     prevConflictRef.current = isDrawingConflict;
   }, [isDrawingConflict, activeDrawing?.id]);
+
+  // Clean up stale tabs on mount, then recheck conflict
+  useEffect(() => {
+    cleanupStaleTabs();
+    // Recheck conflict after cleanup finishes (500ms + margin)
+    const timer = setTimeout(() => {
+      const drawingId = activeDrawing?.id;
+      if (drawingId) {
+        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+      }
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track active drawing per tab
   useEffect(() => {
@@ -220,6 +290,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       channel.onmessage = (event) => {
         if (event.data?.tabId !== TAB_ID) {
+          // Respond to pings so other tabs know we're alive
+          if (event.data?.type === 'ping') {
+            channel?.postMessage({ type: 'pong', tabId: TAB_ID });
+          }
           recheckConflict();
         }
       };
