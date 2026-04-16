@@ -251,9 +251,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     });
   };
 
-  if (!open) return null;
-
-  // Filter and group drawings by folder (memoized)
+  // Filter and group drawings by folder (memoized — must be before early return)
   const { rootDrawings, drawingsByFolder, filteredFolders } = useMemo(() => {
     const query = searchQuery.toLowerCase().trim();
     const filtered = query
@@ -269,6 +267,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       : folders;
     return { rootDrawings: root, drawingsByFolder: byFolder, filteredFolders: foldersFiltered };
   }, [drawings, folders, searchQuery]);
+
+  if (!open) return null;
 
   const dialogStyle: React.CSSProperties = position
     ? {
