@@ -100,7 +100,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [busyFolderId, setBusyFolderId] = useState<string | null>(null);
   const [isRefreshing, setIsRefreshing] = useState(false);
 
-  // Dragging state
+  // Drag-and-drop state (for moving drawings to folders)
+  const [draggingDrawingId, setDraggingDrawingId] = useState<string | null>(null);
+  const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null); // null = root, '__none__' = no target
+
+  // Dialog dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
   const dragRef = useRef<{ startX: number; startY: number; origX: number; origY: number } | null>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -292,6 +296,17 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const renderDrawingRow = (drawing: Drawing) => (
     <div
       key={drawing.id}
+      draggable={!editingId && !confirmDeleteId}
+      onDragStart={(e) => {
+        setDraggingDrawingId(drawing.id);
+        e.dataTransfer.effectAllowed = 'move';
+        e.dataTransfer.setData('text/plain', drawing.id);
+      }}
+      onDragEnd={() => {
+        setDraggingDrawingId(null);
+        setDropTargetFolderId('__none__');
+        setTimeout(() => setDropTargetFolderId(null), 0);
+      }}
       onClick={() => {
         if (editingId || confirmDeleteId || switchingId || movingDrawingId) return;
         if (activeDrawing?.id !== drawing.id) handleSelect(drawing);
@@ -299,11 +314,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
-        cursor: editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
+        cursor: draggingDrawingId ? 'grabbing' : editingId || confirmDeleteId || switchingId ? 'default' : 'pointer',
         backgroundColor: activeDrawing?.id === drawing.id
           ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent',
         transition: 'background-color 0.15s',
-        opacity: switchingId && switchingId !== drawing.id ? 0.5 : 1,
+        opacity: draggingDrawingId === drawing.id ? 0.4 : switchingId && switchingId !== drawing.id ? 0.5 : 1,
       }}
     >
       {renderThumbnail && (
@@ -427,10 +442,33 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         {/* Folder header */}
         <div
           onClick={() => toggleFolder(folder.id)}
+          onDragOver={(e) => {
+            if (!draggingDrawingId) return;
+            e.preventDefault();
+            e.dataTransfer.dropEffect = 'move';
+            setDropTargetFolderId(folder.id);
+          }}
+          onDragLeave={() => {
+            if (dropTargetFolderId === folder.id) setDropTargetFolderId(null);
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            if (draggingDrawingId) {
+              handleMoveToFolder(draggingDrawingId, folder.id);
+              setDraggingDrawingId(null);
+              setDropTargetFolderId(null);
+              // Auto-expand the target folder
+              setExpandedFolders((prev) => new Set([...prev, folder.id]));
+            }
+          }}
           style={{
             padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px',
             borderRadius: '8px', cursor: 'pointer',
-            backgroundColor: 'var(--color-surface-mid, rgba(0, 0, 0, 0.03))',
+            backgroundColor: dropTargetFolderId === folder.id
+              ? 'var(--color-primary-light, rgba(108, 99, 255, 0.2))'
+              : 'var(--color-surface-mid, rgba(0, 0, 0, 0.03))',
+            border: dropTargetFolderId === folder.id ? '2px dashed var(--color-primary, #6c63ff)' : '2px solid transparent',
+            transition: 'background-color 0.15s, border-color 0.15s',
           }}
         >
           <span style={{ fontSize: '12px', width: '16px', textAlign: 'center', flexShrink: 0 }}>
@@ -571,6 +609,41 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             <div style={{ padding: '8px 20px 0' }}>
               {/* Folder groups */}
               {filteredFolders.map(renderFolderGroup)}
+
+              {/* Drop zone for root level (when dragging from a folder) */}
+              {draggingDrawingId && folders.length > 0 && (
+                <div
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.dataTransfer.dropEffect = 'move';
+                    setDropTargetFolderId('__root__');
+                  }}
+                  onDragLeave={() => {
+                    if (dropTargetFolderId === '__root__') setDropTargetFolderId(null);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    if (draggingDrawingId) {
+                      handleMoveToFolder(draggingDrawingId, null);
+                      setDraggingDrawingId(null);
+                      setDropTargetFolderId(null);
+                    }
+                  }}
+                  style={{
+                    padding: '8px 12px', marginBottom: '4px',
+                    borderRadius: '8px', textAlign: 'center',
+                    fontSize: '12px', color: 'var(--text-secondary-color, #888)',
+                    backgroundColor: dropTargetFolderId === '__root__'
+                      ? 'var(--color-primary-light, rgba(108, 99, 255, 0.2))'
+                      : 'transparent',
+                    border: '2px dashed var(--default-border-color, #ccc)',
+                    borderColor: dropTargetFolderId === '__root__' ? 'var(--color-primary, #6c63ff)' : 'var(--default-border-color, #ccc)',
+                    transition: 'background-color 0.15s, border-color 0.15s',
+                  }}
+                >
+                  {t.moveToRoot}
+                </div>
+              )}
 
               {/* Root-level drawings (no folder) */}
               {rootDrawings.map(renderDrawingRow)}
