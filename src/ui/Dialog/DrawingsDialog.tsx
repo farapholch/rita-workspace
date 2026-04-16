@@ -97,6 +97,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [confirmDeleteFolderId, setConfirmDeleteFolderId] = useState<string | null>(null);
   const [movingDrawingId, setMovingDrawingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [busyFolderId, setBusyFolderId] = useState<string | null>(null);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
   // Dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -107,7 +109,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const prevOpenRef = useRef(false);
   useEffect(() => {
     if (open) {
-      refreshDrawings();
+      setIsRefreshing(true);
+      refreshDrawings().finally(() => setIsRefreshing(false));
       if (!prevOpenRef.current) {
         setPosition(null);
         setSearchQuery('');
@@ -187,10 +190,12 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
   const handleCreateFolder = useCallback(async () => {
     if (newFolderName.trim()) {
+      setBusyFolderId('__creating__');
       const folder = await createFolder(newFolderName.trim());
       if (folder) {
         setExpandedFolders((prev) => new Set([...prev, folder.id]));
       }
+      setBusyFolderId(null);
     }
     setCreatingFolder(false);
     setNewFolderName('');
@@ -198,14 +203,18 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
   const handleSaveFolderEdit = useCallback(async () => {
     if (editingFolderId && editFolderName.trim()) {
+      setBusyFolderId(editingFolderId);
       await renameFolder(editingFolderId, editFolderName.trim());
+      setBusyFolderId(null);
     }
     setEditingFolderId(null);
     setEditFolderName('');
   }, [editingFolderId, editFolderName, renameFolder]);
 
   const handleDeleteFolder = useCallback(async (id: string) => {
+    setBusyFolderId(id);
     await deleteFolder(id);
+    setBusyFolderId(null);
     setConfirmDeleteFolderId(null);
   }, [deleteFolder]);
 
@@ -427,7 +436,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           <span style={{ fontSize: '12px', width: '16px', textAlign: 'center', flexShrink: 0 }}>
             {isExpanded ? '▼' : '▶'}
           </span>
-          <span style={{ fontSize: '16px', flexShrink: 0 }}>📁</span>
+          <span style={{ fontSize: '16px', flexShrink: 0 }}>
+            {busyFolderId === folder.id
+              ? <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite' }}>⏳</span>
+              : '📁'}
+          </span>
           <div style={{ flex: 1, minWidth: 0 }}>
             {editingFolderId === folder.id ? (
               <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }} onClick={(e) => e.stopPropagation()}>
@@ -550,7 +563,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         <div style={{ flex: 1, overflow: 'auto' }}>
 
           {/* === Drawings & Folders list === */}
-          {(drawings.length > 0 || folders.length > 0) && (
+          {isRefreshing && drawings.length === 0 ? (
+            <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text-secondary-color, #666)' }}>
+              <span style={{ display: 'inline-block', animation: 'spin 1s linear infinite', fontSize: '24px' }}>⏳</span>
+            </div>
+          ) : (drawings.length > 0 || folders.length > 0) ? (
             <div style={{ padding: '8px 20px 0' }}>
               {/* Folder groups */}
               {filteredFolders.map(renderFolderGroup)}
@@ -558,9 +575,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               {/* Root-level drawings (no folder) */}
               {rootDrawings.map(renderDrawingRow)}
             </div>
-          )}
-
-          {drawings.length === 0 && folders.length === 0 && (
+          ) : (
             <div style={{ padding: '24px 20px', textAlign: 'center', color: 'var(--text-secondary-color, #666)' }}>
               <p>{t.noDrawingsYet}</p>
               <p>{t.clickNewToStart}</p>
@@ -598,9 +613,9 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                     border: '1px solid var(--color-primary, #6c63ff)', borderRadius: '8px', outline: 'none',
                   }}
                 />
-                <button onClick={handleCreateFolder}
-                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer' }}>
-                  {t.save}
+                <button onClick={handleCreateFolder} disabled={busyFolderId === '__creating__'}
+                  style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'var(--color-primary, #6c63ff)', color: '#fff', border: 'none', borderRadius: '8px', cursor: 'pointer', opacity: busyFolderId === '__creating__' ? 0.6 : 1 }}>
+                  {busyFolderId === '__creating__' ? '⏳' : t.save}
                 </button>
                 <button onClick={() => { setCreatingFolder(false); setNewFolderName(''); }}
                   style={{ padding: '8px 16px', fontSize: '14px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '8px', cursor: 'pointer', color: 'inherit' }}>
