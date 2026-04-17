@@ -35,6 +35,17 @@ export async function getAllDrawings(): Promise<Drawing[]> {
   return db.getAllFromIndex('drawings', 'by-updated');
 }
 
+/** Lightweight metadata-only fetch — skips elements/appState/files for fast listing */
+export type DrawingMeta = Pick<Drawing, 'id' | 'name' | 'folderId' | 'createdAt' | 'updatedAt'>;
+
+export async function getAllDrawingsMeta(): Promise<DrawingMeta[]> {
+  const db = await getDB();
+  const all = await db.getAllFromIndex('drawings', 'by-updated');
+  return all.map(({ id, name, folderId, createdAt, updatedAt }) => ({
+    id, name, folderId, createdAt, updatedAt,
+  }));
+}
+
 export async function updateDrawing(
   id: string,
   updates: Partial<Omit<Drawing, 'id' | 'createdAt'>>

@@ -49,11 +49,13 @@ const DB_NAME = 'rita-workspace';
 const DB_VERSION = 2;
 
 let dbInstance: IDBPDatabase<RitaWorkspaceDB> | null = null;
+let dbPromise: Promise<IDBPDatabase<RitaWorkspaceDB>> | null = null;
 
 export async function getDB(): Promise<IDBPDatabase<RitaWorkspaceDB>> {
   if (dbInstance) return dbInstance;
+  if (dbPromise) return dbPromise;
 
-  dbInstance = await openDB<RitaWorkspaceDB>(DB_NAME, DB_VERSION, {
+  dbPromise = openDB<RitaWorkspaceDB>(DB_NAME, DB_VERSION, {
     upgrade(db, oldVersion) {
       // === Version 1: workspaces + drawings ===
       if (!db.objectStoreNames.contains('workspaces')) {
@@ -74,7 +76,14 @@ export async function getDB(): Promise<IDBPDatabase<RitaWorkspaceDB>> {
     },
   });
 
+  dbInstance = await dbPromise;
+  dbPromise = null;
   return dbInstance;
+}
+
+/** Pre-warm the DB connection so it's ready when first query runs */
+export function warmDB(): void {
+  if (!dbInstance && !dbPromise) getDB();
 }
 
 export async function closeDB(): Promise<void> {

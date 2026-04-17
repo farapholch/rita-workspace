@@ -1,4 +1,4 @@
-export { getDB, closeDB } from './db';
+export { getDB, closeDB, warmDB } from './db';
 export type { Drawing, Folder, Workspace } from './db';
 
 export * from './drawingStore';

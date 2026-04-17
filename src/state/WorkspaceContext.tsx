@@ -17,8 +17,12 @@ import {
   createFolder as createFolderStore,
   renameFolder as renameFolderStore,
   deleteFolder as deleteFolderStore,
+  warmDB,
 } from '../storage';
 import { getTranslations, type Translations } from '../i18n';
+
+// Pre-warm IndexedDB connection at module load time (before React renders)
+warmDB();
 
 export interface WorkspaceContextValue {
   // State
@@ -408,31 +412,35 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         const ws = await getOrCreateDefaultWorkspace();
         setWorkspace(ws);
 
-        const allDrawings = await getAllDrawings();
+        // Phase 1: Load active drawing ASAP (single DB read) while list loads in parallel
+        const lastDrawingId = sessionStorage.getItem('rita-workspace-tab-drawing');
+        const activeDrawingPromise = lastDrawingId
+          ? getDrawing(lastDrawingId)
+          : Promise.resolve(undefined);
+
+        // Phase 2: Load drawing list + folders in parallel with active drawing
+        const [allDrawings, allFolders, eagarActive] = await Promise.all([
+          getAllDrawings(),
+          getAllFolders(),
+          activeDrawingPromise,
+        ]);
+
         const wsDrawings = allDrawings.filter((d) => ws.drawingIds.includes(d.id));
         setDrawings(wsDrawings);
-
-        const allFolders = await getAllFolders();
         setFolders(allFolders);
 
-        // Determine which drawing to open in this tab:
-        // 1. This tab's last drawing (survives page refresh via sessionStorage)
-        // 2. First drawing in the list (fallback)
-        const lastDrawingId = sessionStorage.getItem('rita-workspace-tab-drawing');
+        // Determine active drawing:
+        // 1. Eagerly loaded from sessionStorage (fastest path)
+        // 2. Found in the list
+        // 3. First drawing as fallback
         let active: Drawing | null = null;
 
-        if (lastDrawingId) {
+        if (eagarActive && ws.drawingIds.includes(eagarActive.id)) {
+          active = eagarActive;
+        } else if (lastDrawingId) {
           active = wsDrawings.find((d) => d.id === lastDrawingId) || null;
-          if (!active) {
-            // Drawing was deleted, try to load from DB
-            const fromDb = await getDrawing(lastDrawingId);
-            if (fromDb && ws.drawingIds.includes(fromDb.id)) {
-              active = fromDb;
-            }
-          }
         }
 
-        // Fallback: first drawing in list
         if (!active && wsDrawings.length > 0) {
           active = wsDrawings[0];
         }
