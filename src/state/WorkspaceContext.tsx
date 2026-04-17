@@ -625,6 +625,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     files?: Record<string, unknown>
   ): Promise<void> => {
     if (!activeDrawing) return;
+    // Safety: never save if this drawing is open in another tab (conflict)
+    if (isDrawingOpenedEarlierInOtherTab(activeDrawing.id)) return;
 
     try {
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
@@ -646,6 +648,9 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     appState: Record<string, unknown>,
     files?: Record<string, unknown>
   ): Promise<void> => {
+    // Safety: never save if this drawing is open in another tab (conflict)
+    if (isDrawingOpenedEarlierInOtherTab(id)) return;
+
     try {
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
         elements,
