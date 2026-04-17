@@ -1,2 +1,2 @@
-export { WorkspaceProvider, useWorkspace, useWorkspaceLang } from './WorkspaceContext';
+export { WorkspaceProvider, useWorkspace, useWorkspaceLang, isDrawingOpenedEarlierInOtherTab } from './WorkspaceContext';
 export type { WorkspaceContextValue } from './WorkspaceContext';

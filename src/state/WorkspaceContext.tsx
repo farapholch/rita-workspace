@@ -159,7 +159,7 @@ function setTabDrawing(drawingId: string | null) {
  * Check if another tab opened the same drawing BEFORE this tab.
  * Only the tab that opened the drawing later is considered in conflict.
  */
-function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
+export function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
   const tabs = getTabsMap();
   const myEntry = tabs[TAB_ID];
   if (!myEntry) return false;
