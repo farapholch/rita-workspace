@@ -490,7 +490,9 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     // Optimistic: create temp drawing immediately
     const now = Date.now();
     const tempId = `temp-${now}`;
-    const defaultName = `${t.newDrawing} ${drawingsRef.current.length + 1}`;
+    // Use DB count to avoid name collisions across tabs
+    const allDrawings = await getAllDrawings();
+    const defaultName = `${t.newDrawing} ${allDrawings.length + 1}`;
     const tempDrawing: Drawing = {
       id: tempId, name: name || defaultName, folderId: folderId || null,
       elements: [], appState: {}, files: {}, createdAt: now, updatedAt: now,
