@@ -176,9 +176,9 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   }, [switchDrawing, onDrawingSelect]);
 
   const handleCreate = useCallback(async (folderId?: string | null) => {
-    const newDrawing = await createNewDrawing(undefined, folderId);
-    if (newDrawing) onDrawingSelect?.(newDrawing);
-  }, [createNewDrawing, onDrawingSelect]);
+    // Create without activating — user must explicitly open the drawing
+    await createNewDrawing(undefined, folderId, false);
+  }, [createNewDrawing]);
 
   const handleStartEdit = useCallback((drawing: Drawing) => {
     setEditingId(drawing.id);

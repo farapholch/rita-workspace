@@ -4,6 +4,7 @@ import {
   Folder,
   Workspace,
   getOrCreateDefaultWorkspace,
+  getWorkspace,
   getDrawing,
   getAllDrawings,
   createDrawing,
@@ -39,7 +40,7 @@ export interface WorkspaceContextValue {
   t: Translations;
 
   // Actions
-  createNewDrawing: (name?: string, folderId?: string | null) => Promise<Drawing | null>;
+  createNewDrawing: (name?: string, folderId?: string | null, activate?: boolean) => Promise<Drawing | null>;
   switchDrawing: (id: string) => Promise<void>;
   renameDrawing: (id: string, name: string) => Promise<void>;
   removeDrawing: (id: string) => Promise<void>;
@@ -109,6 +110,17 @@ const TAB_CHANNEL = 'rita-workspace-tabs';
 interface TabEntry {
   drawingId: string;
   openedAt: number; // timestamp when this tab opened the drawing
+}
+
+// Broadcast a workspace change to other tabs so they can refresh their drawings list
+function broadcastWorkspaceChange(): void {
+  try {
+    const channel = new BroadcastChannel(TAB_CHANNEL);
+    channel.postMessage({ type: 'workspace-changed', tabId: TAB_ID });
+    channel.close();
+  } catch {
+    // BroadcastChannel not supported
+  }
 }
 
 // Cache for parsed tabs map — invalidated on every write
@@ -271,6 +283,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [isDrawingConflict]);
 
   // Always respond to pings from other tabs (must be mounted before cleanupStaleTabs runs)
+  // Also listen for workspace-changed events to auto-refresh the drawings list
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -278,6 +291,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       channel.onmessage = (event) => {
         if (event.data?.type === 'ping') {
           channel?.postMessage({ type: 'pong', tabId: TAB_ID });
+        } else if (event.data?.type === 'workspace-changed' && event.data?.tabId !== TAB_ID) {
+          // Another tab created/renamed/deleted a drawing — refresh our list.
+          // Read-only: does not touch activeDrawing or write to DB.
+          refreshDrawingsRef.current();
         }
       };
     } catch {
@@ -462,16 +479,23 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const refreshDrawings = useCallback(async (): Promise<void> => {
     if (!workspace) return;
     try {
-      // Load both in parallel, then set both at once to avoid flash of ungrouped drawings
-      const [allDrawings, allFolders] = await Promise.all([
+      // Re-read workspace from DB to pick up drawingIds added by other tabs
+      // Don't change activeDrawing here — each tab manages its own active drawing
+      // Never write to DB here — refresh is strictly read-only to avoid overwrites
+      const [freshWorkspace, allDrawings, allFolders] = await Promise.all([
+        getWorkspace(workspace.id),
         getAllDrawings(),
         getAllFolders(),
       ]);
-      const wsDrawings = allDrawings.filter((d) => workspace.drawingIds.includes(d.id));
-      // Batch updates — React 18 batches these automatically in async contexts
+      const drawingIds = freshWorkspace?.drawingIds || workspace.drawingIds;
+      const wsDrawings = allDrawings.filter((d) => drawingIds.includes(d.id));
+      if (freshWorkspace) {
+        // Preserve activeDrawingId from current state — activeDrawingId in DB
+        // reflects some other tab's choice, not ours
+        setWorkspace((prev) => prev ? { ...freshWorkspace, activeDrawingId: prev.activeDrawingId } : freshWorkspace);
+      }
       setDrawings(wsDrawings);
       setFolders(allFolders);
-      // Don't change activeDrawing here — each tab manages its own active drawing
     } catch (err) {
       // silent refresh
     }
@@ -483,8 +507,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   foldersRef.current = folders;
   const activeDrawingIdRef = useRef(activeDrawing?.id ?? null);
   activeDrawingIdRef.current = activeDrawing?.id ?? null;
+  const refreshDrawingsRef = useRef(refreshDrawings);
+  refreshDrawingsRef.current = refreshDrawings;
 
-  const createNewDrawing = useCallback(async (name?: string, folderId?: string | null): Promise<Drawing | null> => {
+  const createNewDrawing = useCallback(async (name?: string, folderId?: string | null, activate: boolean = true): Promise<Drawing | null> => {
     if (!workspace) return null;
 
     // Optimistic: create temp drawing immediately
@@ -498,8 +524,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       elements: [], appState: {}, files: {}, createdAt: now, updatedAt: now,
     };
     setDrawings((prev) => [...prev, tempDrawing]);
-    setActiveDrawing(tempDrawing);
-    sessionStorage.setItem('rita-workspace-tab-drawing', tempId);
+    if (activate) {
+      setActiveDrawing(tempDrawing);
+      sessionStorage.setItem('rita-workspace-tab-drawing', tempId);
+    }
 
     try {
       const drawing = await createDrawing(name || defaultName, [], {}, folderId);
@@ -507,14 +535,17 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       // Replace temp with real drawing
       setDrawings((prev) => prev.map((d) => (d.id === tempId ? drawing : d)));
-      setActiveDrawing(drawing);
+      if (activate) {
+        setActiveDrawing(drawing);
+        sessionStorage.setItem('rita-workspace-tab-drawing', drawing.id);
+      }
       setWorkspace((prev) => prev ? {
         ...prev,
         drawingIds: [...prev.drawingIds, drawing.id],
-        activeDrawingId: drawing.id,
+        ...(activate ? { activeDrawingId: drawing.id } : {}),
       } : null);
-      sessionStorage.setItem('rita-workspace-tab-drawing', drawing.id);
 
+      broadcastWorkspaceChange();
       return drawing;
     } catch (err) {
       // Revert
@@ -547,6 +578,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
     try {
       await updateDrawing(id, { name });
+      broadcastWorkspaceChange();
     } catch (err) {
       // Revert — refresh from DB
       refreshDrawings();
@@ -574,6 +606,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       if (updatedWorkspace) {
         setWorkspace(updatedWorkspace);
       }
+      broadcastWorkspaceChange();
     } catch (err) {
       // Revert
       if (removedDrawing) {
@@ -608,6 +641,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
           ...prev,
           drawingIds: [...prev.drawingIds, duplicate.id],
         } : null);
+        broadcastWorkspaceChange();
         return duplicate;
       }
       // No duplicate returned — remove temp
