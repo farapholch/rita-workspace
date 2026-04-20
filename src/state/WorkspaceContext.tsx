@@ -519,9 +519,19 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const drawingIds = freshWorkspace?.drawingIds || workspace.drawingIds;
       const wsDrawings = allDrawings.filter((d) => drawingIds.includes(d.id));
       if (freshWorkspace) {
-        // Preserve activeDrawingId from current state — activeDrawingId in DB
-        // reflects some other tab's choice, not ours
-        setWorkspace((prev) => prev ? { ...freshWorkspace, activeDrawingId: prev.activeDrawingId } : freshWorkspace);
+        // Only update workspace state if drawingIds or name actually changed.
+        // Unconditional updates create new object refs and cause infinite loops
+        // in consumers whose effects depend on refreshDrawings (dependency changes).
+        setWorkspace((prev) => {
+          if (!prev) return freshWorkspace;
+          const idsEqual =
+            prev.drawingIds.length === freshWorkspace.drawingIds.length &&
+            prev.drawingIds.every((id, i) => id === freshWorkspace.drawingIds[i]);
+          if (idsEqual && prev.name === freshWorkspace.name) {
+            return prev;
+          }
+          return { ...freshWorkspace, activeDrawingId: prev.activeDrawingId };
+        });
       }
       setDrawings(wsDrawings);
       setFolders(allFolders);
