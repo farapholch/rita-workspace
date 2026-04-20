@@ -63,6 +63,7 @@ export interface WorkspaceContextValue {
   exportWorkspace: () => Promise<void>;
   importWorkspace: () => Promise<void>;
   exportDrawingAsExcalidraw: (id: string) => Promise<void>;
+  exportAllDrawingsAsExcalidraw: () => Promise<void>;
   importExcalidrawFile: () => Promise<void>;
 }
 
@@ -805,6 +806,44 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, [drawings]);
 
+  const exportAllDrawingsAsExcalidraw = useCallback(async (): Promise<void> => {
+    try {
+      // Ladda alltid senaste data från DB för att garantera att eventuella osparade
+      // ändringar i andra flikar kommer med (denna funktion är read-only)
+      const all = await getAllDrawings();
+      const wsDrawings = workspace
+        ? all.filter((d) => workspace.drawingIds.includes(d.id))
+        : all;
+
+      for (let i = 0; i < wsDrawings.length; i++) {
+        const drawing = wsDrawings[i];
+        const excalidrawData = {
+          type: 'excalidraw',
+          version: 2,
+          source: 'rita-workspace',
+          elements: drawing.elements || [],
+          appState: { viewBackgroundColor: '#ffffff', ...(drawing.appState || {}) },
+          files: drawing.files || {},
+        };
+        const blob = new Blob([JSON.stringify(excalidrawData, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        // Sanera filnamn och lägg till index för att undvika kollisioner
+        const safeName = (drawing.name || 'ritning').replace(/[\\/:*?"<>|]/g, '_');
+        a.download = `${String(i + 1).padStart(2, '0')}_${safeName}.excalidraw`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        // Liten fördröjning så browsern hinner hantera varje nedladdning
+        await new Promise((r) => setTimeout(r, 150));
+      }
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to export all drawings');
+    }
+  }, [workspace]);
+
   const importExcalidrawFile = useCallback(async (): Promise<void> => {
     if (!workspace) return;
 
@@ -942,6 +981,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
+    exportAllDrawingsAsExcalidraw,
     importExcalidrawFile,
   };
 

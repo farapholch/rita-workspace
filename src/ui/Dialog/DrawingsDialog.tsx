@@ -75,6 +75,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
+    exportAllDrawingsAsExcalidraw,
     importExcalidrawFile,
     refreshDrawings,
     t: contextT,
@@ -777,6 +778,12 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                 localStorage.setItem('rita-workspace-last-backup', Date.now().toString());
                 exportWorkspace();
               }}
+            />
+            <ActionButton
+              icon="📦"
+              label="Exportera alla som .excalidraw"
+              description="Laddar ner varje ritning som separat fil"
+              onClick={exportAllDrawingsAsExcalidraw}
             />
             <ActionButton
               icon="📥"
