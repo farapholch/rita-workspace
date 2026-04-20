@@ -8,10 +8,13 @@ Multi-drawing workspace feature for Rita (Excalidraw fork based on B310-digital/
 - **Folders** - Organize drawings in folders
 - **Auto-save** - All drawings saved locally in IndexedDB
 - **Multi-tab conflict detection** - Prevents data loss when same drawing is open in multiple tabs
+- **F5 preserves write ownership** - TAB_ID and openedAt persist in sessionStorage across page refresh
+- **Cross-tab refresh** - Creating/renaming/deleting drawings in one tab auto-refreshes other tabs via BroadcastChannel
 - **Workspace toggle** - Preview feature that can be enabled/disabled per browser tab
-- **Export/Import** - Export workspace as JSON, import `.excalidraw` files
+- **Export/Import** - Export workspace as JSON, export all drawings as individual .excalidraw files, import .excalidraw files
 - **i18n support** - Swedish and English with automatic Excalidraw language sync
 - **Optimized loading** - DB pre-warming and parallel initialization
+- **Smart drawing naming** - counts drawings from IndexedDB to avoid duplicate names across tabs
 
 ## Installation
 
@@ -160,7 +163,7 @@ const {
   t,                  // Translations
 
   // Drawing actions
-  createNewDrawing,       // (name?, folderId?) => Promise<Drawing | null>
+  createNewDrawing,       // (name?, folderId?, activate=true) => Promise<Drawing | null>
   switchDrawing,          // (id) => Promise<void>
   renameDrawing,          // (id, name) => Promise<void>
   removeDrawing,          // (id) => Promise<void>
@@ -181,6 +184,7 @@ const {
   exportWorkspace,    // () => Promise<void>
   importWorkspace,    // () => Promise<void>
   exportDrawingAsExcalidraw, // (id) => Promise<void>
+  exportAllDrawingsAsExcalidraw, // () => Promise<void> — downloads all as .excalidraw files
   importExcalidrawFile,      // () => Promise<void>
 } = useWorkspace();
 ```
