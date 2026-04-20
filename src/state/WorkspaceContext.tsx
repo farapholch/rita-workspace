@@ -100,10 +100,20 @@ interface WorkspaceProviderProps {
   lang?: string;
 }
 
-// Generate unique tab ID
-const TAB_ID = typeof crypto !== 'undefined' && crypto.randomUUID
-  ? crypto.randomUUID()
-  : Math.random().toString(36).slice(2);
+// Generate unique tab ID — persist in sessionStorage so F5 keeps the same ID.
+// This preserves write-ownership of drawings across page refresh.
+const TAB_ID_KEY = 'rita-workspace-tab-id';
+const TAB_ID = (() => {
+  try {
+    const existing = sessionStorage.getItem(TAB_ID_KEY);
+    if (existing) return existing;
+  } catch {}
+  const fresh = typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+  try { sessionStorage.setItem(TAB_ID_KEY, fresh); } catch {}
+  return fresh;
+})();
 
 const TABS_KEY = 'rita-workspace-tabs'; // JSON: { tabId: { drawingId, openedAt }, ... }
 const TAB_CHANNEL = 'rita-workspace-tabs';
@@ -152,18 +162,36 @@ function getTabsMap(): Record<string, TabEntry> {
   }
 }
 
+const TAB_ENTRY_KEY = 'rita-workspace-tab-entry'; // sessionStorage — survives F5
+
 function setTabDrawing(drawingId: string | null) {
   const tabs = getTabsMap();
   if (drawingId) {
-    // Only update openedAt if this is a different drawing than before
+    // Reuse openedAt from:
+    // 1. localStorage entry (same session, continuing work)
+    // 2. sessionStorage entry (surviving an F5) — preserves write ownership
+    // 3. fallback: new timestamp
     const existing = tabs[TAB_ID];
+    let openedAt: number;
     if (existing && existing.drawingId === drawingId) {
-      // Keep existing timestamp
+      openedAt = existing.openedAt;
     } else {
-      tabs[TAB_ID] = { drawingId, openedAt: Date.now() };
+      let sessionEntry: TabEntry | null = null;
+      try {
+        const raw = sessionStorage.getItem(TAB_ENTRY_KEY);
+        if (raw) sessionEntry = JSON.parse(raw) as TabEntry;
+      } catch {}
+      openedAt = sessionEntry && sessionEntry.drawingId === drawingId
+        ? sessionEntry.openedAt
+        : Date.now();
     }
+    tabs[TAB_ID] = { drawingId, openedAt };
+    try {
+      sessionStorage.setItem(TAB_ENTRY_KEY, JSON.stringify(tabs[TAB_ID]));
+    } catch {}
   } else {
     delete tabs[TAB_ID];
+    try { sessionStorage.removeItem(TAB_ENTRY_KEY); } catch {}
   }
   const json = JSON.stringify(tabs);
   localStorage.setItem(TABS_KEY, json);
