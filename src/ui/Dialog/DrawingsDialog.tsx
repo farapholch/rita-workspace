@@ -332,6 +332,12 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         if (editingId || confirmDeleteId || movingDrawingId) return;
         setSelectedId(drawing.id);
       }}
+      onDoubleClick={(e) => {
+        e.stopPropagation();
+        if (editingId || confirmDeleteId || movingDrawingId) return;
+        if (activeDrawing?.id === drawing.id) return; // already active
+        handleSelect(drawing);
+      }}
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
