@@ -618,7 +618,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                 border: '1px solid #ffc107',
                 textTransform: 'uppercase',
               }}
-              title="Förhandsvisning — funktionen är under utveckling och kan ändras"
+              title="Beta — funktionen är under utveckling och kan ändras"
             >
               BETA
             </span>
@@ -649,7 +649,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         >
           <span>⚠️</span>
           <span>
-            <strong>Förhandsvisning:</strong> Arbetsyta är under utveckling. Ta regelbundet backup via "Spara alla ritningar".
+            <strong>Beta:</strong> Arbetsyta är under utveckling. Ta regelbundet backup via "Spara alla ritningar".
           </span>
         </div>
 
