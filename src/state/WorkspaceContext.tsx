@@ -102,18 +102,34 @@ interface WorkspaceProviderProps {
 
 // Generate unique tab ID — persist in sessionStorage so F5 keeps the same ID.
 // This preserves write-ownership of drawings across page refresh.
+// Mutable: may be regenerated if we detect a collision with another tab
+// (Chrome/Firefox "Duplicate tab" copies sessionStorage, giving two tabs the same ID).
 const TAB_ID_KEY = 'rita-workspace-tab-id';
-const TAB_ID = (() => {
+const TAB_ENTRY_KEY = 'rita-workspace-tab-entry'; // sessionStorage — survives F5
+
+function generateFreshTabId(): string {
+  return typeof crypto !== 'undefined' && crypto.randomUUID
+    ? crypto.randomUUID()
+    : Math.random().toString(36).slice(2);
+}
+
+let TAB_ID = (() => {
   try {
     const existing = sessionStorage.getItem(TAB_ID_KEY);
     if (existing) return existing;
   } catch {}
-  const fresh = typeof crypto !== 'undefined' && crypto.randomUUID
-    ? crypto.randomUUID()
-    : Math.random().toString(36).slice(2);
+  const fresh = generateFreshTabId();
   try { sessionStorage.setItem(TAB_ID_KEY, fresh); } catch {}
   return fresh;
 })();
+
+function regenerateTabId(): void {
+  TAB_ID = generateFreshTabId();
+  try { sessionStorage.setItem(TAB_ID_KEY, TAB_ID); } catch {}
+  // The sessionStorage entry was copied from the original tab — discard it
+  // so the duplicated tab gets a fresh openedAt (and thus becomes read-only).
+  try { sessionStorage.removeItem(TAB_ENTRY_KEY); } catch {}
+}
 
 const TABS_KEY = 'rita-workspace-tabs'; // JSON: { tabId: { drawingId, openedAt }, ... }
 const TAB_CHANNEL = 'rita-workspace-tabs';
@@ -161,8 +177,6 @@ function getTabsMap(): Record<string, TabEntry> {
     return {};
   }
 }
-
-const TAB_ENTRY_KEY = 'rita-workspace-tab-entry'; // sessionStorage — survives F5
 
 function setTabDrawing(drawingId: string | null) {
   const tabs = getTabsMap();
@@ -219,6 +233,37 @@ export function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
       entry.drawingId === drawingId &&
       entry.openedAt <= myOpenedAt
   );
+}
+
+/**
+ * Detect whether another live tab claims the same TAB_ID as this one.
+ * Happens when the user duplicates a tab: Chrome/Firefox copy sessionStorage,
+ * so both tabs read the same persisted TAB_ID.
+ * Resolves true if collision detected within the probe window.
+ */
+function detectTabIdCollision(): Promise<boolean> {
+  return new Promise((resolve) => {
+    let channel: BroadcastChannel;
+    try {
+      channel = new BroadcastChannel(TAB_CHANNEL);
+    } catch {
+      resolve(false);
+      return;
+    }
+
+    let collided = false;
+    channel.onmessage = (event) => {
+      if (event.data?.type === 'id-collision' && event.data?.tabId === TAB_ID) {
+        collided = true;
+      }
+    };
+    channel.postMessage({ type: 'id-claim', tabId: TAB_ID });
+
+    setTimeout(() => {
+      channel.close();
+      resolve(collided);
+    }, 300);
+  });
 }
 
 // Clean up stale tab entries on load by pinging other tabs
@@ -315,7 +360,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [isDrawingConflict]);
 
   // Always respond to pings from other tabs (must be mounted before cleanupStaleTabs runs)
-  // Also listen for workspace-changed events to auto-refresh the drawings list
+  // Also listen for workspace-changed events to auto-refresh the drawings list,
+  // and for id-claim probes so duplicated tabs can detect the collision.
   useEffect(() => {
     let channel: BroadcastChannel | null = null;
     try {
@@ -323,6 +369,9 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       channel.onmessage = (event) => {
         if (event.data?.type === 'ping') {
           channel?.postMessage({ type: 'pong', tabId: TAB_ID });
+        } else if (event.data?.type === 'id-claim' && event.data?.tabId === TAB_ID) {
+          // Another tab is claiming our TAB_ID — signal the collision so it regenerates
+          channel?.postMessage({ type: 'id-collision', tabId: TAB_ID });
         } else if (event.data?.type === 'workspace-changed' && event.data?.tabId !== TAB_ID) {
           // Another tab created/renamed/deleted a drawing — refresh our list.
           // Read-only: does not touch activeDrawing or write to DB.
@@ -336,23 +385,39 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, []);
 
   const hasCleanedUpRef = useRef(false);
+  // Gates setTabDrawing until we've confirmed our TAB_ID is unique.
+  // Writing to localStorage with a colliding TAB_ID would overwrite the original tab's entry.
+  const [tabIdReady, setTabIdReady] = useState(false);
 
-  // Clean up stale tabs on mount, then do first conflict check
+  // Resolve TAB_ID collision (duplicate-tab), then clean up stale tabs and do first conflict check
   useEffect(() => {
-    cleanupStaleTabs();
-    // First conflict check after cleanup finishes (500ms + margin)
-    const timer = setTimeout(() => {
-      hasCleanedUpRef.current = true;
-      const drawingId = activeDrawingIdRef.current;
-      if (drawingId) {
-        setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+    let cancelled = false;
+    let timer: ReturnType<typeof setTimeout> | null = null;
+    (async () => {
+      if (await detectTabIdCollision()) {
+        regenerateTabId();
       }
-    }, 600);
-    return () => clearTimeout(timer);
+      if (cancelled) return;
+      setTabIdReady(true);
+      cleanupStaleTabs();
+      timer = setTimeout(() => {
+        hasCleanedUpRef.current = true;
+        const drawingId = activeDrawingIdRef.current;
+        if (drawingId) {
+          setIsDrawingConflict(isDrawingOpenedEarlierInOtherTab(drawingId));
+        }
+      }, 600);
+    })();
+    return () => {
+      cancelled = true;
+      if (timer) clearTimeout(timer);
+    };
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Track active drawing per tab
   useEffect(() => {
+    if (!tabIdReady) return; // Don't write to localStorage until TAB_ID is confirmed unique
+
     const drawingId = activeDrawing?.id || null;
     setTabDrawing(drawingId);
 
@@ -430,7 +495,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       document.removeEventListener('visibilitychange', onVisibilityChange);
       stopPolling();
     };
-  }, [activeDrawing?.id]);
+  }, [activeDrawing?.id, tabIdReady]);
 
   // Cleanup on tab close — notify other tabs so they can recheck conflict
   useEffect(() => {
@@ -558,9 +623,20 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     // Optimistic: create temp drawing immediately
     const now = Date.now();
     const tempId = `temp-${now}`;
-    // Use DB count to avoid name collisions across tabs
+    // Pick the next suffix based on the highest existing "<prefix> N",
+    // so deletions/duplicates/imports don't produce gaps or collisions.
     const allDrawings = await getAllDrawings();
-    const defaultName = `${t.newDrawing} ${allDrawings.length + 1}`;
+    const prefix = t.newDrawing;
+    const suffixRegex = new RegExp(`^${prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')} (\\d+)$`);
+    let maxSuffix = 0;
+    for (const d of allDrawings) {
+      const m = d.name.match(suffixRegex);
+      if (m) {
+        const n = parseInt(m[1], 10);
+        if (!isNaN(n) && n > maxSuffix) maxSuffix = n;
+      }
+    }
+    const defaultName = `${prefix} ${maxSuffix + 1}`;
     const tempDrawing: Drawing = {
       id: tempId, name: name || defaultName, folderId: folderId || null,
       elements: [], appState: {}, files: {}, createdAt: now, updatedAt: now,
@@ -629,7 +705,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [refreshDrawings]);
 
   const removeDrawing = useCallback(async (id: string): Promise<void> => {
-    if (!workspace || drawingsRef.current.length <= 1) return;
+    if (!workspace) return;
 
     // Optimistic: remove immediately, switch active if needed
     const removedDrawing = drawingsRef.current.find((d) => d.id === id);
@@ -648,6 +724,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       if (updatedWorkspace) {
         setWorkspace(updatedWorkspace);
       }
+      // If that was the last drawing, create a fresh empty one so the workspace is never empty
+      if (remaining.length === 0) {
+        await createNewDrawing();
+      }
       broadcastWorkspaceChange();
     } catch (err) {
       // Revert
@@ -656,7 +736,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       }
       setError(err instanceof Error ? err.message : 'Failed to delete drawing');
     }
-  }, [workspace]);
+  }, [workspace, createNewDrawing]);
 
   const duplicateCurrentDrawing = useCallback(async (): Promise<Drawing | null> => {
     if (!activeDrawingIdRef.current || !workspace) return null;
@@ -715,6 +795,17 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         updateData.files = files;
       }
       await updateDrawing(activeDrawing.id, updateData);
+      // Update in-memory drawings so thumbnails & dialog reflect the latest canvas.
+      // Saves are debounced (3s) at the caller, so the cost is bounded.
+      const now = Date.now();
+      const patch = {
+        elements: elements as Drawing['elements'],
+        appState: appState as Drawing['appState'],
+        ...(files ? { files: files as Drawing['files'] } : {}),
+        updatedAt: now,
+      };
+      setDrawings((prev) => prev.map((d) => (d.id === activeDrawing.id ? { ...d, ...patch } : d)));
+      setActiveDrawing((prev) => (prev && prev.id === activeDrawing.id ? { ...prev, ...patch } : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save drawing');
     }
@@ -738,6 +829,15 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         updateData.files = files;
       }
       await updateDrawing(id, updateData);
+      const now = Date.now();
+      const patch = {
+        elements: elements as Drawing['elements'],
+        appState: appState as Drawing['appState'],
+        ...(files ? { files: files as Drawing['files'] } : {}),
+        updatedAt: now,
+      };
+      setDrawings((prev) => prev.map((d) => (d.id === id ? { ...d, ...patch } : d)));
+      setActiveDrawing((prev) => (prev && prev.id === id ? { ...prev, ...patch } : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save drawing');
     }
@@ -746,11 +846,18 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   const exportWorkspace = useCallback(async (): Promise<void> => {
     try {
       const exportData = {
-        version: 1,
+        version: 2,
         name: workspace?.name || 'Min Arbetsyta',
         exportedAt: new Date().toISOString(),
+        folders: folders.map((f) => ({
+          id: f.id,
+          name: f.name,
+          createdAt: f.createdAt,
+          updatedAt: f.updatedAt,
+        })),
         drawings: drawings.map((d) => ({
           name: d.name,
+          folderId: d.folderId ?? null,
           elements: d.elements,
           appState: d.appState,
           files: d.files,
@@ -771,7 +878,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to export workspace');
     }
-  }, [workspace, drawings]);
+  }, [workspace, drawings, folders]);
 
   const importWorkspace = useCallback(async (): Promise<void> => {
     if (!workspace) return;
@@ -795,8 +902,19 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         throw new Error('Invalid workspace file');
       }
 
+      // Re-create folders first (v2+) and build old-id → new-id map
+      const folderIdMap = new Map<string, string>();
+      if (Array.isArray(data.folders)) {
+        for (const f of data.folders) {
+          if (!f?.name || !f?.id) continue;
+          const created = await createFolderStore(f.name);
+          folderIdMap.set(f.id, created.id);
+        }
+      }
+
       for (const d of data.drawings) {
-        const drawing = await createDrawing(d.name || t.newDrawing);
+        const mappedFolderId = d.folderId ? folderIdMap.get(d.folderId) ?? null : null;
+        const drawing = await createDrawing(d.name || t.newDrawing, [], {}, mappedFolderId);
         await updateDrawing(drawing.id, {
           elements: d.elements || [],
           appState: d.appState || {},
@@ -806,11 +924,15 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       }
 
       // Refresh state
-      const allDrawings = await getAllDrawings();
-      const ws = await getOrCreateDefaultWorkspace();
+      const [allDrawings, allFolders, ws] = await Promise.all([
+        getAllDrawings(),
+        getAllFolders(),
+        getOrCreateDefaultWorkspace(),
+      ]);
       const wsDrawings = allDrawings.filter((dr) => ws.drawingIds.includes(dr.id));
       setWorkspace(ws);
       setDrawings(wsDrawings);
+      setFolders(allFolders);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import workspace');
     }
