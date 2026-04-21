@@ -191,7 +191,10 @@ function setTabDrawing(drawingId: string | null) {
     } catch {}
   } else {
     delete tabs[TAB_ID];
-    try { sessionStorage.removeItem(TAB_ENTRY_KEY); } catch {}
+    // IMPORTANT: do NOT clear sessionStorage TAB_ENTRY_KEY here.
+    // Initial render briefly has activeDrawing=null before init completes;
+    // clearing the sessionStorage entry would lose the old openedAt after F5.
+    // The entry will be overwritten by the next setTabDrawing call with a drawingId.
   }
   const json = JSON.stringify(tabs);
   localStorage.setItem(TABS_KEY, json);
