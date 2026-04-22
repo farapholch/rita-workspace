@@ -801,6 +801,11 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     if (isDrawingOpenedEarlierInOtherTab(activeDrawing.id)) return;
 
     try {
+      // Skip if DB has newer data than our in-memory copy — means something
+      // external wrote to the drawing and our save would clobber it.
+      const fresh = await getDrawing(activeDrawing.id);
+      if (fresh && fresh.updatedAt > (activeDrawing.updatedAt ?? 0)) return;
+
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
         elements,
         appState,
@@ -835,6 +840,11 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     if (isDrawingOpenedEarlierInOtherTab(id)) return;
 
     try {
+      // Skip if DB has newer data than our in-memory copy for this drawing.
+      const inMem = drawingsRef.current.find((d) => d.id === id);
+      const fresh = await getDrawing(id);
+      if (fresh && inMem && fresh.updatedAt > (inMem.updatedAt ?? 0)) return;
+
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
         elements,
         appState,
