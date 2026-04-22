@@ -235,6 +235,12 @@ export function isDrawingOpenedEarlierInOtherTab(drawingId: string): boolean {
   );
 }
 
+// Probe IDs we've sent ourselves — so our own ping-listener (different BroadcastChannel
+// instance but same tab) can skip responding to our own id-claim. BroadcastChannel delivers
+// to every listener with the same name EXCEPT the exact channel instance that posted, so
+// a second channel in the same tab will still receive the message.
+const ownProbeIds = new Set<string>();
+
 /**
  * Detect whether another live tab claims the same TAB_ID as this one.
  * Happens when the user duplicates a tab: Chrome/Firefox copy sessionStorage,
@@ -251,16 +257,22 @@ function detectTabIdCollision(): Promise<boolean> {
       return;
     }
 
+    const probeId = typeof crypto !== 'undefined' && crypto.randomUUID
+      ? crypto.randomUUID()
+      : Math.random().toString(36).slice(2);
+    ownProbeIds.add(probeId);
+
     let collided = false;
     channel.onmessage = (event) => {
       if (event.data?.type === 'id-collision' && event.data?.tabId === TAB_ID) {
         collided = true;
       }
     };
-    channel.postMessage({ type: 'id-claim', tabId: TAB_ID });
+    channel.postMessage({ type: 'id-claim', tabId: TAB_ID, probeId });
 
     setTimeout(() => {
       channel.close();
+      ownProbeIds.delete(probeId);
       resolve(collided);
     }, 300);
   });
@@ -370,6 +382,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         if (event.data?.type === 'ping') {
           channel?.postMessage({ type: 'pong', tabId: TAB_ID });
         } else if (event.data?.type === 'id-claim' && event.data?.tabId === TAB_ID) {
+          // Skip echoes of our own probe — same tab, different BroadcastChannel instance
+          if (event.data?.probeId && ownProbeIds.has(event.data.probeId)) return;
           // Another tab is claiming our TAB_ID — signal the collision so it regenerates
           channel?.postMessage({ type: 'id-collision', tabId: TAB_ID });
         } else if (event.data?.type === 'workspace-changed' && event.data?.tabId !== TAB_ID) {
