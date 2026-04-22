@@ -433,7 +433,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     if (!tabIdReady) return; // Don't write to localStorage until TAB_ID is confirmed unique
 
     const drawingId = activeDrawing?.id || null;
-    setTabDrawing(drawingId);
+    // Only write when we have a drawing. A null transition during loading (e.g., F5 before
+    // workspace init finishes) would delete our localStorage entry; stale-tab cleanup in
+    // OTHER tabs is the right place to reap closed tabs, not this effect.
+    if (drawingId) setTabDrawing(drawingId);
 
     // Don't check conflict until stale tabs have been cleaned up (600ms after mount)
     // This prevents false positives from dead tab entries
@@ -805,6 +808,13 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       // external wrote to the drawing and our save would clobber it.
       const fresh = await getDrawing(activeDrawing.id);
       if (fresh && fresh.updatedAt > (activeDrawing.updatedAt ?? 0)) return;
+      // Guard: never overwrite non-empty DB content with an empty save.
+      // Canvas may report [] briefly during mount / before a reload completes rendering,
+      // and beforeunload-triggered saves in that window would erase the drawing.
+      if (Array.isArray(elements) && elements.length === 0
+          && fresh && Array.isArray(fresh.elements) && fresh.elements.length > 0) {
+        return;
+      }
 
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
         elements,
@@ -844,6 +854,11 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const inMem = drawingsRef.current.find((d) => d.id === id);
       const fresh = await getDrawing(id);
       if (fresh && inMem && fresh.updatedAt > (inMem.updatedAt ?? 0)) return;
+      // Guard: never overwrite non-empty DB content with an empty save (see saveCurrentDrawing).
+      if (Array.isArray(elements) && elements.length === 0
+          && fresh && Array.isArray(fresh.elements) && fresh.elements.length > 0) {
+        return;
+      }
 
       const updateData: { elements: unknown[]; appState: Record<string, unknown>; files?: Record<string, unknown> } = {
         elements,
