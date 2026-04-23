@@ -420,18 +420,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         display: 'flex', gap: '2px', alignItems: 'center',
         visibility: (hoveredId === drawing.id || selectedId === drawing.id || activeDrawing?.id === drawing.id || confirmDeleteId === drawing.id || movingDrawingId === drawing.id || editingId === drawing.id) ? 'visible' : 'hidden',
       }}>
-        {confirmDeleteId === drawing.id ? (
-          <>
-            <button onClick={(e) => { e.stopPropagation(); handleDelete(drawing.id); }}
-              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-              {t.delete}
-            </button>
-            <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(null); }}
-              style={{ padding: '4px 10px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
-              {t.cancel}
-            </button>
-          </>
-        ) : movingDrawingId === drawing.id ? (
+        {movingDrawingId === drawing.id ? (
           <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', flexDirection: 'column', gap: '2px', fontSize: '12px' }}>
             <button onClick={() => handleMoveToFolder(drawing.id, null)}
               style={{ padding: '3px 8px', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', backgroundColor: !drawing.folderId ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))' : 'transparent', color: 'inherit', textAlign: 'left' }}>
@@ -550,18 +539,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             )}
           </div>
           {/* Folder actions */}
-          {confirmDeleteFolderId === folder.id ? (
-            <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '4px' }}>
-              <button onClick={() => handleDeleteFolder(folder.id)}
-                style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: '#dc3545', color: '#fff', border: 'none', borderRadius: '4px', cursor: 'pointer' }}>
-                {t.delete}
-              </button>
-              <button onClick={() => setConfirmDeleteFolderId(null)}
-                style={{ padding: '2px 8px', fontSize: '12px', backgroundColor: 'transparent', border: '1px solid var(--default-border-color, #ccc)', borderRadius: '4px', cursor: 'pointer', color: 'inherit' }}>
-                {t.cancel}
-              </button>
-            </div>
-          ) : editingFolderId !== folder.id && (
+          {editingFolderId !== folder.id && (
             <div onClick={(e) => e.stopPropagation()} style={{ display: 'flex', gap: '2px' }}>
               <button onClick={() => { setEditingFolderId(folder.id); setEditFolderName(folder.name); }}
                 style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '2px', fontSize: '12px', opacity: 0.5 }}
@@ -834,6 +812,80 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Confirm delete modal — for drawings and folders */}
+      {(confirmDeleteId || confirmDeleteFolderId) && (() => {
+        const isFolder = !!confirmDeleteFolderId;
+        const targetName = isFolder
+          ? folders.find((f) => f.id === confirmDeleteFolderId)?.name
+          : drawings.find((d) => d.id === confirmDeleteId)?.name;
+        const onConfirm = () => {
+          if (isFolder && confirmDeleteFolderId) handleDeleteFolder(confirmDeleteFolderId);
+          else if (confirmDeleteId) handleDelete(confirmDeleteId);
+        };
+        const onCancel = () => {
+          setConfirmDeleteId(null);
+          setConfirmDeleteFolderId(null);
+        };
+        return (
+          <div
+            onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
+            onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
+            style={{
+              position: 'fixed', top: 0, left: 0, right: 0, bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              zIndex: 10000,
+            }}
+          >
+            <div style={{
+              backgroundColor: 'var(--island-bg-color, #fff)',
+              color: 'var(--text-primary-color, #1b1b1f)',
+              borderRadius: '12px',
+              padding: '24px',
+              minWidth: '320px',
+              maxWidth: '420px',
+              boxShadow: '0 12px 32px rgba(0, 0, 0, 0.25)',
+            }}>
+              <h3 style={{ margin: '0 0 12px', fontSize: '16px', fontWeight: 600 }}>
+                {isFolder ? t.deleteFolder : t.delete}
+              </h3>
+              <p style={{ margin: '0 0 20px', fontSize: '14px', lineHeight: 1.5, color: 'var(--text-secondary-color, #666)' }}>
+                {isFolder ? t.deleteFolderConfirm : t.confirmDelete}
+                {targetName && (
+                  <>
+                    {' '}<strong style={{ color: 'var(--text-primary-color, #1b1b1f)' }}>{targetName}</strong>?
+                  </>
+                )}
+              </p>
+              <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end' }}>
+                <button
+                  onClick={onCancel}
+                  autoFocus
+                  style={{
+                    padding: '8px 16px', fontSize: '14px',
+                    backgroundColor: 'transparent',
+                    border: '1px solid var(--default-border-color, #ccc)',
+                    borderRadius: '6px', cursor: 'pointer', color: 'inherit',
+                  }}
+                >
+                  {t.cancel}
+                </button>
+                <button
+                  onClick={onConfirm}
+                  style={{
+                    padding: '8px 16px', fontSize: '14px',
+                    backgroundColor: '#dc3545', color: '#fff',
+                    border: 'none', borderRadius: '6px', cursor: 'pointer',
+                  }}
+                >
+                  {t.delete}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 };
