@@ -341,7 +341,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       style={{
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
-        cursor: draggingDrawingId ? 'grabbing' : 'pointer',
+        userSelect: 'none',
+        cursor: draggingDrawingId ? 'grabbing' : 'grab',
         backgroundColor: activeDrawing?.id === drawing.id
           ? 'var(--color-primary-light, rgba(108, 99, 255, 0.1))'
           : selectedId === drawing.id
@@ -393,7 +394,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                 style={{
                   fontWeight: activeDrawing?.id === drawing.id ? 600 : 400,
                   fontSize: '14px', overflow: 'hidden', textOverflow: 'ellipsis',
-                  whiteSpace: 'nowrap', cursor: 'text',
+                  whiteSpace: 'nowrap', cursor: 'pointer',
                 }}
                 title={t.rename}
               >
