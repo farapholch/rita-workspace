@@ -12,6 +12,7 @@ import {
   deleteDrawing,
   duplicateDrawing,
   moveDrawingToFolder as moveDrawingToFolderStore,
+  reorderDrawings as reorderDrawingsStore,
   addDrawingToWorkspace,
   removeDrawingFromWorkspace,
   getAllFolders,
@@ -51,6 +52,9 @@ export interface WorkspaceContextValue {
   renameFolder: (id: string, name: string) => Promise<void>;
   deleteFolder: (id: string) => Promise<void>;
   moveDrawingToFolder: (drawingId: string, folderId: string | null) => Promise<void>;
+  /** Re-numbers `position` for the given drawing IDs in order. Use the full ordered slice
+   *  the user reordered (e.g. all root drawings, or all drawings in a folder). */
+  reorderDrawings: (orderedIds: string[]) => Promise<void>;
 
   // For Excalidraw integration
   saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
@@ -1158,6 +1162,22 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, []);
 
+  const reorderDrawings = useCallback(async (orderedIds: string[]): Promise<void> => {
+    // Optimistic: assign positions immediately so the UI re-sorts before DB writes settle.
+    const positionMap = new Map(orderedIds.map((id, idx) => [id, idx]));
+    setDrawings((prev) => prev.map((d) =>
+      positionMap.has(d.id) ? { ...d, position: positionMap.get(d.id) } : d
+    ));
+    try {
+      await reorderDrawingsStore(orderedIds);
+      broadcastWorkspaceChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder drawings');
+      // Refresh from DB on failure to get back to a consistent state
+      refreshDrawingsRef.current();
+    }
+  }, []);
+
   const value: WorkspaceContextValue = {
     workspace,
     drawings,
@@ -1177,6 +1197,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     renameFolder,
     deleteFolder,
     moveDrawingToFolder,
+    reorderDrawings,
     saveCurrentDrawing,
     saveDrawingById,
     refreshDrawings,

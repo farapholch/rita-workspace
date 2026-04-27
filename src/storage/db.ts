@@ -4,6 +4,8 @@ export interface Drawing {
   id: string;
   name: string;
   folderId?: string | null;
+  /** Manual sort position. Lower = earlier in list. Falls back to createdAt when unset. */
+  position?: number;
   elements: unknown[];
   appState: Record<string, unknown>;
   files: Record<string, unknown>;

@@ -72,6 +72,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     renameFolder,
     deleteFolder,
     moveDrawingToFolder,
+    reorderDrawings,
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
@@ -107,6 +108,9 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   // Drag-and-drop state (for moving drawings to folders)
   const [draggingDrawingId, setDraggingDrawingId] = useState<string | null>(null);
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null); // null = root, '__none__' = no target
+  // Reorder drop indicator: drawing-id of the row we're hovering, plus 'before' or 'after' to show line position
+  const [dropTargetDrawingId, setDropTargetDrawingId] = useState<string | null>(null);
+  const [dropTargetPosition, setDropTargetPosition] = useState<'before' | 'after' | null>(null);
 
   // Dialog dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -235,6 +239,40 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     moveDrawingToFolder(drawingId, folderId);
   }, [moveDrawingToFolder]);
 
+  // Reorder: dropping `draggedId` before/after `targetId` within the targetId's scope
+  // (root drawings if targetId has no folder, otherwise drawings in that folder).
+  const handleReorderDrop = useCallback((
+    draggedId: string,
+    targetId: string,
+    pos: 'before' | 'after',
+  ) => {
+    if (draggedId === targetId) return;
+    const target = drawings.find((d) => d.id === targetId);
+    if (!target) return;
+    // Build the ordered slice the user is reordering within.
+    const scopeFolderId = target.folderId ?? null;
+    const scope = drawings
+      .filter((d) => (d.folderId ?? null) === scopeFolderId)
+      .sort((a, b) => (a.position ?? a.createdAt) - (b.position ?? b.createdAt));
+    const withoutDragged = scope.filter((d) => d.id !== draggedId);
+    const targetIdx = withoutDragged.findIndex((d) => d.id === targetId);
+    if (targetIdx === -1) return;
+    const insertIdx = pos === 'before' ? targetIdx : targetIdx + 1;
+    const dragged = drawings.find((d) => d.id === draggedId);
+    if (!dragged) return;
+    // If the dragged drawing was in a different folder, also move it into the new folder
+    // — drag-reorder across folders implies "move into this folder + place here".
+    if ((dragged.folderId ?? null) !== scopeFolderId) {
+      moveDrawingToFolder(draggedId, scopeFolderId);
+    }
+    const ordered = [
+      ...withoutDragged.slice(0, insertIdx),
+      dragged,
+      ...withoutDragged.slice(insertIdx),
+    ].map((d) => d.id);
+    reorderDrawings(ordered);
+  }, [drawings, reorderDrawings, moveDrawingToFolder]);
+
   const toggleFolder = useCallback((folderId: string) => {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
@@ -272,8 +310,10 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     const filtered = query
       ? drawings.filter((d) => d.name.toLowerCase().includes(query))
       : drawings;
-    // Sort by createdAt (stable order — not affected by auto-save updating updatedAt)
-    const sorted = [...filtered].sort((a, b) => a.createdAt - b.createdAt);
+    // Sort by manual `position` (set via drag-reorder), falling back to createdAt for unset.
+    const sorted = [...filtered].sort((a, b) =>
+      (a.position ?? a.createdAt) - (b.position ?? b.createdAt)
+    );
     const root = sorted.filter((d) => !d.folderId);
     const byFolder: Record<string, Drawing[]> = {};
     for (const folder of folders) {
@@ -324,6 +364,36 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       onDragEnd={() => {
         setDraggingDrawingId(null);
         setDropTargetFolderId(null);
+        setDropTargetDrawingId(null);
+        setDropTargetPosition(null);
+      }}
+      onDragOver={(e) => {
+        // Only show reorder indicator when another drawing is being dragged.
+        if (!draggingDrawingId || draggingDrawingId === drawing.id) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = 'move';
+        const rect = e.currentTarget.getBoundingClientRect();
+        const isBefore = e.clientY < rect.top + rect.height / 2;
+        setDropTargetDrawingId(drawing.id);
+        setDropTargetPosition(isBefore ? 'before' : 'after');
+      }}
+      onDragLeave={(e) => {
+        // Only clear when leaving the row entirely (not entering a child element)
+        if (e.currentTarget.contains(e.relatedTarget as Node)) return;
+        if (dropTargetDrawingId === drawing.id) {
+          setDropTargetDrawingId(null);
+          setDropTargetPosition(null);
+        }
+      }}
+      onDrop={(e) => {
+        if (!draggingDrawingId || !dropTargetPosition || draggingDrawingId === drawing.id) return;
+        e.preventDefault();
+        e.stopPropagation();
+        handleReorderDrop(draggingDrawingId, drawing.id, dropTargetPosition);
+        setDraggingDrawingId(null);
+        setDropTargetDrawingId(null);
+        setDropTargetPosition(null);
+        setDropTargetFolderId(null);
       }}
       onMouseEnter={() => setHoveredId(drawing.id)}
       onMouseLeave={() => setHoveredId(null)}
@@ -339,6 +409,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         handleSelect(drawing);
       }}
       style={{
+        position: 'relative',
         padding: '10px 12px', display: 'flex', alignItems: 'center', gap: '12px',
         borderRadius: '8px', marginBottom: '4px',
         userSelect: 'none',
@@ -354,6 +425,18 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         opacity: draggingDrawingId === drawing.id ? 0.4 : switchingId && switchingId !== drawing.id ? 0.5 : 1,
       }}
     >
+      {/* Reorder drop indicator — thin line above or below the row */}
+      {dropTargetDrawingId === drawing.id && dropTargetPosition && (
+        <div style={{
+          position: 'absolute',
+          left: 4, right: 4,
+          [dropTargetPosition === 'before' ? 'top' : 'bottom']: -2,
+          height: '3px',
+          backgroundColor: 'var(--color-primary, #6c63ff)',
+          borderRadius: '2px',
+          pointerEvents: 'none',
+        }} />
+      )}
       {renderThumbnail && (
         <div style={{
           width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',

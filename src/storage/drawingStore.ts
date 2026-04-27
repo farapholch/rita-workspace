@@ -94,3 +94,20 @@ export async function moveDrawingToFolder(
 ): Promise<Drawing | undefined> {
   return updateDrawing(drawingId, { folderId });
 }
+
+/**
+ * Re-number `position` for the given drawing IDs in the order provided (0..N-1).
+ * Drawings not in `orderedIds` are left untouched (caller should pass the full
+ * sorted slice that the user reordered, e.g. all root drawings or all in a folder).
+ */
+export async function reorderDrawings(orderedIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('drawings', 'readwrite');
+  const store = tx.objectStore('drawings');
+  for (let i = 0; i < orderedIds.length; i++) {
+    const existing = await store.get(orderedIds[i]);
+    if (!existing) continue;
+    await store.put({ ...existing, position: i });
+  }
+  await tx.done;
+}
