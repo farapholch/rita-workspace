@@ -88,8 +88,8 @@ const sv: Translations = {
   // Actions with descriptions
   createNewDrawing: 'Skapa ny ritning',
   createNewDrawingDesc: 'Skapar en tom ritning i din arbetsyta',
-  openFromFile: 'Öppna ritning från fil',
-  openFromFileDesc: 'Öppnar en sparad ritning från din dator',
+  openFromFile: 'Importera ritning från fil',
+  openFromFileDesc: 'Importerar en sparad ritning från din dator',
   saveAllBackup: 'Spara alla ritningar (backup)',
   saveAllBackupDesc: 'Ladda ner hela din arbetsyta som backup',
   loadBackup: 'Läs in sparad arbetsyta',
@@ -147,8 +147,8 @@ const en: Translations = {
   // Actions with descriptions
   createNewDrawing: 'Create new drawing',
   createNewDrawingDesc: 'Creates an empty drawing in your workspace',
-  openFromFile: 'Open drawing from file',
-  openFromFileDesc: 'Opens a saved drawing from your computer',
+  openFromFile: 'Import drawing from file',
+  openFromFileDesc: 'Imports a saved drawing from your computer',
   saveAllBackup: 'Save all drawings (backup)',
   saveAllBackupDesc: 'Download your entire workspace as a backup',
   loadBackup: 'Load saved workspace',
