@@ -105,6 +105,29 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   // busyFolderId removed — all folder operations are now optimistic
   const [isRefreshing, setIsRefreshing] = useState(false);
 
+  // Auto-start preference (persisted in localStorage; read by Excalidraw-1 on app boot
+  // to enable workspace mode without an explicit toggle in the menu).
+  const [autoStart, setAutoStart] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('rita-workspace-auto-start') === 'true';
+    } catch {
+      return false;
+    }
+  });
+  const handleToggleAutoStart = useCallback(() => {
+    setAutoStart((prev) => {
+      const next = !prev;
+      try {
+        if (next) {
+          localStorage.setItem('rita-workspace-auto-start', 'true');
+        } else {
+          localStorage.removeItem('rita-workspace-auto-start');
+        }
+      } catch { /* ignore quota / private mode */ }
+      return next;
+    });
+  }, []);
+
   // Drag-and-drop state (for moving drawings to folders)
   const [draggingDrawingId, setDraggingDrawingId] = useState<string | null>(null);
   const [dropTargetFolderId, setDropTargetFolderId] = useState<string | null>(null); // null = root, '__none__' = no target
@@ -893,6 +916,35 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               description={t.loadBackupDesc}
               onClick={importWorkspace}
             />
+          </div>
+
+          {/* === Settings: auto-start workspace mode === */}
+          <div style={{ padding: '0 20px 16px' }}>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                border: '1px solid var(--default-border-color, #e0e0e0)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={autoStart}
+                onChange={handleToggleAutoStart}
+                style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>{t.autoStartLabel}</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary-color, #888)', marginTop: '2px' }}>
+                  {t.autoStartDesc}
+                </div>
+              </div>
+            </label>
           </div>
         </div>
       </div>

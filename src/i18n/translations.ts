@@ -61,6 +61,10 @@ export interface Translations {
   backupReminder: string;
   days: string;
 
+  // Auto-start
+  autoStartLabel: string;
+  autoStartDesc: string;
+
   // Shortcuts
   shortcutNewDrawing: string;
 }
@@ -120,6 +124,10 @@ const sv: Translations = {
   backupReminder: 'Senaste backup:',
   days: 'dagar sedan',
 
+  // Auto-start
+  autoStartLabel: 'Starta Rita i arbetsläge',
+  autoStartDesc: 'Aktivera arbetsläge automatiskt när Rita öppnas',
+
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
 };
@@ -178,6 +186,10 @@ const en: Translations = {
   // Backup reminder
   backupReminder: 'Last backup:',
   days: 'days ago',
+
+  // Auto-start
+  autoStartLabel: 'Start Rita in workspace mode',
+  autoStartDesc: 'Automatically enable workspace mode when Rita opens',
 
   // Shortcuts
   shortcutNewDrawing: 'Ctrl+Alt+N',
