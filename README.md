@@ -124,6 +124,19 @@ const [workspaceEnabled] = useState(() =>
 - State stored in `sessionStorage` (not shared between tabs)
 - When disabled: auto-save to workspace skipped, drawing-switch disabled, footer hidden
 
+### Auto-start preference
+
+Users can opt into starting every new tab in workspace mode via a checkbox in `DrawingsDialog`. The preference is stored in `localStorage['rita-workspace-auto-start']` (`"true"` to enable, removed when disabled). The host app reads this flag at init time as a fallback when `sessionStorage` has no explicit value:
+
+```tsx
+const [workspaceEnabled] = useState(() => {
+  const sessionVal = sessionStorage.getItem("rita-workspace-enabled");
+  if (sessionVal === "true") return true;
+  if (sessionVal === "false") return false;
+  return localStorage.getItem("rita-workspace-auto-start") === "true";
+});
+```
+
 ## API Reference
 
 ### Components
@@ -131,7 +144,7 @@ const [workspaceEnabled] = useState(() =>
 | Component | Description |
 |-----------|-------------|
 | `WorkspaceProvider` | React context provider. Props: `lang`, `children` |
-| `DrawingsDialog` | Management dialog. Props: `open`, `onClose`, `onDrawingSelect`, `renderThumbnail` |
+| `DrawingsDialog` | Management dialog. Props: `open`, `onClose`, `onDrawingSelect` (called on both switch and create), `renderThumbnail` |
 
 ### Hooks
 
@@ -185,7 +198,7 @@ const {
   importWorkspace,    // () => Promise<void>
   exportDrawingAsExcalidraw, // (id) => Promise<void>
   exportAllDrawingsAsExcalidraw, // () => Promise<void> — downloads all as .excalidraw files
-  importExcalidrawFile,      // () => Promise<void>
+  importExcalidrawFile,      // () => Promise<void> — imports .excalidraw files; switches to the last imported drawing
 } = useWorkspace();
 ```
 
