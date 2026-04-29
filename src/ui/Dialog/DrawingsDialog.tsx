@@ -566,7 +566,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
               title={t.exportDrawing}>💾</button>
             <button onClick={(e) => { e.stopPropagation(); setConfirmDeleteId(drawing.id); }}
               style={{ background: 'none', border: 'none', cursor: 'pointer', padding: '4px', fontSize: '14px', opacity: 0.5 }}
-              title={t.delete} disabled={drawings.length <= 1}>🗑️</button>
+              title={t.delete}>🗑️</button>
           </>
         )}
       </div>
