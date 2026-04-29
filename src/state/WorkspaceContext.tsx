@@ -1066,6 +1066,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
       if (!files || files.length === 0) return;
 
+      let lastImportedId: string | null = null;
       for (const file of Array.from(files)) {
         const text = await file.text();
         const data = JSON.parse(text);
@@ -1083,6 +1084,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
           files: data.files || {},
         });
         await addDrawingToWorkspace(workspace.id, drawing.id);
+        lastImportedId = drawing.id;
       }
 
       // Refresh state
@@ -1091,10 +1093,15 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const wsDrawings = allDrawings.filter((dr) => ws.drawingIds.includes(dr.id));
       setWorkspace(ws);
       setDrawings(wsDrawings);
+
+      // Open the last imported drawing so the user lands on what they just imported
+      if (lastImportedId) {
+        await switchDrawing(lastImportedId);
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to import drawing');
     }
-  }, [workspace, t]);
+  }, [workspace, t, switchDrawing]);
 
   const createFolder = useCallback(async (name: string): Promise<Folder | null> => {
     // Optimistic: create a temporary folder immediately
