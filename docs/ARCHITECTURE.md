@@ -95,24 +95,22 @@ rita-workspace/
 └─────────────────────────────────────────────────────────────────┘
 ```
 
-## Minimal Excalidraw Changes
+## Excalidraw Host App Integration
 
-Only **3 integration points** needed in Excalidraw:
+The package ships storage, state, dialog, and translations. The host app owns the canvas bridge (feeding Excalidraw's `onChange` into `saveCurrentDrawing` and pushing `activeDrawing.elements` back via `excalidrawAPI.updateScene` on switch).
 
-```typescript
-// 1. Import plugin (in App.tsx or index.tsx)
-import { WorkspacePlugin } from '@rita/workspace';
+See [INTEGRATION.md](./INTEGRATION.md) for the full guide with the 10 integration steps used in the reference Excalidraw fork. The minimum is:
 
-// 2. Wrap Excalidraw component
-<WorkspacePlugin>
-  <Excalidraw ... />
-</WorkspacePlugin>
+```tsx
+// 1. Wrap your app
+import { WorkspaceProvider } from "rita-workspace";
+<WorkspaceProvider lang="sv"><App /></WorkspaceProvider>
 
-// 3. Pass bridge ref (optional, for tighter integration)
-<Excalidraw
-  ref={excalidrawRef}
-  onWorkspaceInit={(bridge) => workspacePlugin.connect(bridge)}
-/>
+// 2. Read state + save on Excalidraw onChange
+const { activeDrawing, saveCurrentDrawing } = useWorkspace();
+
+// 3. Push activeDrawing.elements into Excalidraw on switch
+useEffect(() => excalidrawAPI?.updateScene({ elements: activeDrawing.elements }), [activeDrawing?.id]);
 ```
 
 ## NPM Package Approach

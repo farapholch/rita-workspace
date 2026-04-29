@@ -26,6 +26,8 @@ yarn add rita-workspace
 
 ## Integration Guide
 
+> 📘 For the full host-app integration walkthrough (10 steps including auto-save debounce, switch effect, conflict handling, and replacing Excalidraw's "Open from file"), see [docs/INTEGRATION.md](./docs/INTEGRATION.md).
+
 ### 1. `App.tsx` - Add Provider
 
 ```tsx
