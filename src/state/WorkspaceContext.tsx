@@ -565,9 +565,10 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         setFolders(allFolders);
 
         // Determine active drawing:
-        // 1. Eagerly loaded from sessionStorage (fastest path)
+        // 1. Eagerly loaded from sessionStorage (fastest path — same tab)
         // 2. Found in the list
-        // 3. First drawing as fallback
+        // 3. Last-active drawing from localStorage (cross-tab memory)
+        // 4. First drawing as fallback (new user / cleared storage)
         let active: Drawing | null = null;
 
         if (eagarActive && ws.drawingIds.includes(eagarActive.id)) {
@@ -577,7 +578,13 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         }
 
         if (!active && wsDrawings.length > 0) {
-          active = wsDrawings[0];
+          const globalLastActiveId = localStorage.getItem('rita-workspace-last-active-drawing');
+          if (globalLastActiveId) {
+            active = wsDrawings.find((d) => d.id === globalLastActiveId) || null;
+          }
+          if (!active) {
+            active = wsDrawings[0];
+          }
         }
 
         if (active) {
@@ -593,6 +600,14 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
 
     init();
   }, []);
+
+  // Persist the active drawing id globally so that auto-start in new tabs
+  // can resume on the user's last-edited drawing (cross-tab memory).
+  useEffect(() => {
+    if (activeDrawing?.id) {
+      localStorage.setItem('rita-workspace-last-active-drawing', activeDrawing.id);
+    }
+  }, [activeDrawing?.id]);
 
   const refreshDrawings = useCallback(async (): Promise<void> => {
     if (!workspace) return;
