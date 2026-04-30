@@ -45,6 +45,8 @@ const toggleWorkspace = () => {
 
 When disabled: skip workspace saves and don't load workspace drawings into the canvas.
 
+When **enabled**, on mount the library resolves the active drawing in this order: `sessionStorage['rita-workspace-tab-drawing']` (same tab) → `localStorage['rita-workspace-last-active-drawing']` (cross-tab, last edited drawing) → first drawing in the list. So a user who closes Rita and re-opens it (or opens it via auto-start in a fresh tab) lands on the drawing they last edited, not an arbitrary one.
+
 ## 3. Read state with `useWorkspace()`
 
 ```tsx
@@ -145,20 +147,31 @@ if (isDrawingOpenedEarlierInOtherTab(drawingId)) {
 
 Also pass `viewModeEnabled={isDrawingConflict}` to `<Excalidraw>` to lock the canvas visually.
 
-## 9. Optional: import canvas content on toggle on
+## 9. Optional: handle toggle on based on canvas state
 
-When the user toggles workspace **on** with non-empty canvas content, the reference implementation imports it as a new drawing called *"Importerad ritning"* so the user doesn't lose work. Pseudocode:
+The reference implementation branches on canvas content when the user toggles workspace **on**:
+
+| Canvas state | Existing drawings | Behavior |
+|--------------|-------------------|----------|
+| Has content | (any) | Import as a new drawing called *"Importerad ritning"* and switch to it (so the user doesn't lose work) |
+| Empty | ≥ 2 | Open `DrawingsDialog` so the user picks which drawing to open (or `+ Skapa ny ritning`) |
+| Empty | 0 or 1 | Just activate — nothing meaningful to choose between |
+
+Pseudocode for the import path:
 
 ```tsx
 const onToggleOn = async () => {
   const elements = excalidrawAPI.getSceneElementsIncludingDeleted();
   const hasContent = elements.some(e => !e.isDeleted);
-  if (!hasContent) return;
+
+  if (!hasContent) {
+    if (drawings.length > 1) setShowDrawingsDialog(true);
+    return;
+  }
 
   // Skip if a workspace drawing already has identical content (fingerprint match)
   const fingerprint = (els) => els.filter(e => !e.isDeleted).map(e => `${e.id}:${e.version}`).sort().join(",");
-  const canvasFp = fingerprint(elements);
-  if (drawings.some(d => fingerprint(d.elements ?? []) === canvasFp)) return;
+  if (drawings.some(d => fingerprint(d.elements ?? []) === fingerprint(elements))) return;
 
   const drawing = await createNewDrawing("Importerad ritning", null, false);
   await saveDrawingById(drawing.id, elements, appState, files);

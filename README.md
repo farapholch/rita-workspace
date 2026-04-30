@@ -139,6 +139,12 @@ const [workspaceEnabled] = useState(() => {
 });
 ```
 
+### Cross-tab "last active drawing" memory
+
+The library writes `localStorage['rita-workspace-last-active-drawing']` whenever the active drawing changes. On mount in a tab without a session-pinned drawing (e.g. auto-start in a fresh tab), the active-drawing resolution falls back to this id before defaulting to the first drawing in the list. Users see the drawing they last edited rather than an arbitrary one.
+
+Resolution order: `sessionStorage['rita-workspace-tab-drawing']` → `localStorage['rita-workspace-last-active-drawing']` → `wsDrawings[0]`.
+
 ## API Reference
 
 ### Components
