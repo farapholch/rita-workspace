@@ -1,0 +1,10 @@
+/* Thumbnail tweaks — keep original drawing colors, but soften in dark mode
+   so the white-canvas thumbnails don't pop against the dark dialog. */
+.theme--dark .rita-thumbnail-wrapper {
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+
+.theme--dark .rita-thumbnail-wrapper img {
+  opacity: 0.88;
+}

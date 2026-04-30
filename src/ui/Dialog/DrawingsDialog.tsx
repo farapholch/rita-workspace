@@ -9,6 +9,7 @@ import React, { useState, useCallback, useMemo, useRef, useEffect } from 'react'
 import { useWorkspace } from '../../state/WorkspaceContext';
 import { getTranslations } from '../../i18n';
 import type { Drawing, Folder } from '../../storage/db';
+import './Dialog.css';
 
 export interface DrawingsDialogProps {
   open: boolean;
@@ -463,11 +464,16 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         }} />
       )}
       {renderThumbnail && (
-        <div style={{
-          width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',
-          overflow: 'hidden', border: '1px solid var(--default-border-color, #e0e0e0)',
-          backgroundColor: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center',
-        }}>
+        <div
+          className="rita-thumbnail-wrapper"
+          style={{
+            width: '64px', height: '48px', flexShrink: 0, borderRadius: '4px',
+            overflow: 'hidden', border: '1px solid var(--default-border-color, #e0e0e0)',
+            backgroundColor: 'var(--island-bg-color, #fff)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            boxShadow: 'inset 0 0 0 1px rgba(0,0,0,0.04)',
+          }}
+        >
           {renderThumbnail(drawing)}
         </div>
       )}
