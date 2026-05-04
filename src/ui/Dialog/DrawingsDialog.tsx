@@ -323,11 +323,20 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     });
   };
 
-  // Check days since last backup
-  const daysSinceBackup = useMemo(() => {
+  // Check days since last backup + raw timestamp
+  const { daysSinceBackup, lastBackupTimestamp } = useMemo(() => {
     const lastBackup = localStorage.getItem('rita-workspace-last-backup');
-    if (!lastBackup) return drawings.length > 0 ? 999 : null; // Never backed up but has drawings
-    return Math.floor((Date.now() - parseInt(lastBackup, 10)) / (1000 * 60 * 60 * 24));
+    if (!lastBackup) {
+      return {
+        daysSinceBackup: drawings.length > 0 ? 999 : null,
+        lastBackupTimestamp: null as number | null,
+      };
+    }
+    const ts = parseInt(lastBackup, 10);
+    return {
+      daysSinceBackup: Math.floor((Date.now() - ts) / (1000 * 60 * 60 * 24)),
+      lastBackupTimestamp: ts,
+    };
   }, [drawings.length, open]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filter and group drawings by folder (memoized — must be before early return)
@@ -875,33 +884,52 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
 
           {/* === Section: Hela arbetsytan === */}
           <div style={sectionHeaderStyle}>{t.sectionWorkspace}</div>
-          {daysSinceBackup !== null && daysSinceBackup >= 7 && (
-            <div
-              style={{
-                margin: '0 20px 12px',
-                padding: '10px 14px',
-                backgroundColor: daysSinceBackup >= 30 ? '#f8d7da' : '#fff3cd',
-                color: daysSinceBackup >= 30 ? '#721c24' : '#856404',
-                fontSize: '13px',
-                fontWeight: 500,
-                border: `1px solid ${daysSinceBackup >= 30 ? '#dc3545' : '#ffc107'}`,
-                borderRadius: '6px',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '8px',
-              }}
-            >
-              <span style={{ fontSize: '16px' }}>{daysSinceBackup >= 30 ? '🚨' : '⚠️'}</span>
-              <span>
-                {daysSinceBackup >= 999
-                  ? <><strong>Ingen backup gjord ännu.</strong> Klicka "Spara alla ritningar" nedan för att ladda ner en kopia.</>
-                  : daysSinceBackup >= 30
-                    ? <><strong>Ingen backup på {daysSinceBackup} dagar.</strong> Det är dags att spara en kopia av dina ritningar.</>
-                    : <>Senaste backup för {daysSinceBackup} dagar sedan. Överväg att spara en ny.</>
-                }
-              </span>
-            </div>
-          )}
+          {daysSinceBackup !== null && (() => {
+            const isNever = daysSinceBackup >= 999;
+            const isCritical = !isNever && daysSinceBackup >= 30;
+            const isWarning = !isNever && !isCritical && daysSinceBackup >= 7;
+            const isInfo = !isNever && !isCritical && !isWarning;
+            const dateStr = lastBackupTimestamp
+              ? new Date(lastBackupTimestamp).toLocaleString(effectiveLang || 'sv', {
+                  year: 'numeric', month: 'short', day: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })
+              : null;
+            const ageStr = daysSinceBackup === 0 ? 'idag' : `för ${daysSinceBackup} dagar sedan`;
+            return (
+              <div
+                style={{
+                  margin: '0 20px 12px',
+                  padding: '10px 14px',
+                  backgroundColor: isCritical || isNever ? '#f8d7da' : isWarning ? '#fff3cd' : 'transparent',
+                  color: isCritical || isNever ? '#721c24' : isWarning ? '#856404' : 'var(--text-secondary-color, #888)',
+                  fontSize: '13px',
+                  fontWeight: isInfo ? 400 : 500,
+                  border: isInfo
+                    ? '1px solid var(--default-border-color, #e0e0e0)'
+                    : `1px solid ${isCritical || isNever ? '#dc3545' : '#ffc107'}`,
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                }}
+              >
+                <span style={{ fontSize: '16px' }}>
+                  {isNever || isCritical ? '🚨' : isWarning ? '⚠️' : '💾'}
+                </span>
+                <span>
+                  {isNever
+                    ? <><strong>Ingen backup gjord ännu.</strong> Klicka "Spara alla ritningar" nedan för att ladda ner en kopia.</>
+                    : isCritical
+                      ? <><strong>Ingen backup på {daysSinceBackup} dagar.</strong> Senast: {dateStr}.</>
+                      : isWarning
+                        ? <>Senaste backup {ageStr} ({dateStr}). Överväg att spara en ny.</>
+                        : <>Senaste backup {ageStr} ({dateStr}).</>
+                  }
+                </span>
+              </div>
+            );
+          })()}
           <div style={{ padding: '0 20px 16px', display: 'flex', gap: '8px' }}>
             <ActionButton
               icon="💾"
