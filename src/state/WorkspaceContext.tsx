@@ -22,6 +22,7 @@ import {
   warmDB,
 } from '../storage';
 import { getTranslations, type Translations } from '../i18n';
+import { shouldAbortSaveDueToIdMismatch } from './saveGuard';
 
 // Pre-warm IndexedDB connection at module load time (before React renders)
 warmDB();
@@ -826,7 +827,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     // from a different canvas — writing them would merge B's content into A.
     // Compare against the live ref, NOT the closure-captured activeDrawing
     // (which would always match expected since both were captured together).
-    if (expectedDrawingId !== activeDrawingIdRef.current) {
+    if (shouldAbortSaveDueToIdMismatch(expectedDrawingId, activeDrawingIdRef.current)) {
       return;
     }
     if (!activeDrawing || activeDrawing.id !== expectedDrawingId) return;
@@ -839,7 +840,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       const fresh = await getDrawing(expectedDrawingId);
       if (fresh && fresh.updatedAt > (activeDrawing.updatedAt ?? 0)) return;
       // Re-check after the await — active drawing may have changed during the DB read.
-      if (expectedDrawingId !== activeDrawingIdRef.current) return;
+      if (shouldAbortSaveDueToIdMismatch(expectedDrawingId, activeDrawingIdRef.current)) return;
       // Guard: never overwrite non-empty DB content with an empty save.
       // Canvas may report [] briefly during mount / before a reload completes rendering,
       // and beforeunload-triggered saves in that window would erase the drawing.
