@@ -973,6 +973,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         };
         return (
           <div
+            className="rita-workspace-confirm-modal"
             onClick={(e) => { if (e.target === e.currentTarget) onCancel(); }}
             onKeyDown={(e) => { if (e.key === 'Escape') onCancel(); }}
             style={{
