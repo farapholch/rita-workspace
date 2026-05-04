@@ -733,51 +733,6 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             ×
           </button>
         </div>
-        {/* BETA varning */}
-        <div
-          style={{
-            padding: '8px 20px',
-            backgroundColor: '#fff3cd',
-            color: '#856404',
-            fontSize: '12px',
-            borderBottom: '1px solid #ffc107',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-          }}
-        >
-          <span>⚠️</span>
-          <span>
-            <strong>Beta:</strong> Arbetsyta är under utveckling. Ta regelbundet backup via "Spara alla ritningar".
-          </span>
-        </div>
-        {/* Backup-status varning */}
-        {daysSinceBackup !== null && daysSinceBackup >= 7 && (
-          <div
-            style={{
-              padding: '8px 20px',
-              backgroundColor: daysSinceBackup >= 30 ? '#f8d7da' : '#fff3cd',
-              color: daysSinceBackup >= 30 ? '#721c24' : '#856404',
-              fontSize: '13px',
-              fontWeight: 500,
-              borderBottom: `1px solid ${daysSinceBackup >= 30 ? '#dc3545' : '#ffc107'}`,
-              display: 'flex',
-              alignItems: 'center',
-              gap: '8px',
-            }}
-          >
-            <span style={{ fontSize: '16px' }}>{daysSinceBackup >= 30 ? '🚨' : '⚠️'}</span>
-            <span>
-              {daysSinceBackup >= 999
-                ? <><strong>Ingen backup gjord ännu.</strong> Klicka "Spara alla ritningar" nedan för att ladda ner en kopia.</>
-                : daysSinceBackup >= 30
-                  ? <><strong>Ingen backup på {daysSinceBackup} dagar.</strong> Det är dags att spara en kopia av dina ritningar.</>
-                  : <>Senaste backup för {daysSinceBackup} dagar sedan. Överväg att spara en ny.</>
-              }
-            </span>
-          </div>
-        )}
-
         {/* Search */}
         {drawings.length > 3 && (
           <div style={{ padding: '8px 20px', borderBottom: '1px solid var(--default-border-color, #e0e0e0)' }}>
@@ -921,11 +876,30 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           {/* === Section: Hela arbetsytan === */}
           <div style={sectionHeaderStyle}>{t.sectionWorkspace}</div>
           {daysSinceBackup !== null && daysSinceBackup >= 7 && (
-            <div style={{ padding: '0 20px 8px', fontSize: '12px', color: 'var(--text-secondary-color, #888)' }}>
-              {daysSinceBackup >= 30
-                ? `⚠️ ${t.backupReminder || 'Ingen backup på'} ${daysSinceBackup} ${t.days || 'dagar'}`
-                : `${t.backupReminder || 'Senaste backup:'} ${daysSinceBackup} ${t.days || 'dagar sedan'}`
-              }
+            <div
+              style={{
+                margin: '0 20px 12px',
+                padding: '10px 14px',
+                backgroundColor: daysSinceBackup >= 30 ? '#f8d7da' : '#fff3cd',
+                color: daysSinceBackup >= 30 ? '#721c24' : '#856404',
+                fontSize: '13px',
+                fontWeight: 500,
+                border: `1px solid ${daysSinceBackup >= 30 ? '#dc3545' : '#ffc107'}`,
+                borderRadius: '6px',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+              }}
+            >
+              <span style={{ fontSize: '16px' }}>{daysSinceBackup >= 30 ? '🚨' : '⚠️'}</span>
+              <span>
+                {daysSinceBackup >= 999
+                  ? <><strong>Ingen backup gjord ännu.</strong> Klicka "Spara alla ritningar" nedan för att ladda ner en kopia.</>
+                  : daysSinceBackup >= 30
+                    ? <><strong>Ingen backup på {daysSinceBackup} dagar.</strong> Det är dags att spara en kopia av dina ritningar.</>
+                    : <>Senaste backup för {daysSinceBackup} dagar sedan. Överväg att spara en ny.</>
+                }
+              </span>
             </div>
           )}
           <div style={{ padding: '0 20px 16px', display: 'flex', gap: '8px' }}>
