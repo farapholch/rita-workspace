@@ -751,6 +751,32 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             <strong>Beta:</strong> Arbetsyta är under utveckling. Ta regelbundet backup via "Spara alla ritningar".
           </span>
         </div>
+        {/* Backup-status varning */}
+        {daysSinceBackup !== null && daysSinceBackup >= 7 && (
+          <div
+            style={{
+              padding: '8px 20px',
+              backgroundColor: daysSinceBackup >= 30 ? '#f8d7da' : '#fff3cd',
+              color: daysSinceBackup >= 30 ? '#721c24' : '#856404',
+              fontSize: '13px',
+              fontWeight: 500,
+              borderBottom: `1px solid ${daysSinceBackup >= 30 ? '#dc3545' : '#ffc107'}`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}
+          >
+            <span style={{ fontSize: '16px' }}>{daysSinceBackup >= 30 ? '🚨' : '⚠️'}</span>
+            <span>
+              {daysSinceBackup >= 999
+                ? <><strong>Ingen backup gjord ännu.</strong> Klicka "Spara alla ritningar" nedan för att ladda ner en kopia.</>
+                : daysSinceBackup >= 30
+                  ? <><strong>Ingen backup på {daysSinceBackup} dagar.</strong> Det är dags att spara en kopia av dina ritningar.</>
+                  : <>Senaste backup för {daysSinceBackup} dagar sedan. Överväg att spara en ny.</>
+              }
+            </span>
+          </div>
+        )}
 
         {/* Search */}
         {drawings.length > 3 && (
