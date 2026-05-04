@@ -55,12 +55,17 @@ export function useExcalidrawBridge({
       clearTimeout(saveTimeoutRef.current);
     }
 
+    // Capture the active drawing id NOW so the deferred save can verify
+    // we're still on the same drawing when it fires.
+    const expectedId = activeDrawing?.id;
+    if (!expectedId) return;
+
     saveTimeoutRef.current = setTimeout(async () => {
       const elements = excalidrawAPI.getSceneElements();
       const appState = excalidrawAPI.getAppState();
-      await saveCurrentDrawing(elements, appState);
+      await saveCurrentDrawing(expectedId, elements, appState);
     }, autoSaveInterval);
-  }, [excalidrawAPI, saveCurrentDrawing, autoSaveInterval]);
+  }, [excalidrawAPI, saveCurrentDrawing, autoSaveInterval, activeDrawing]);
 
   // Save on unmount or before switching
   useEffect(() => {

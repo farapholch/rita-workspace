@@ -57,7 +57,7 @@ export interface WorkspaceContextValue {
   reorderDrawings: (orderedIds: string[]) => Promise<void>;
 
   // For Excalidraw integration
-  saveCurrentDrawing: (elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
+  saveCurrentDrawing: (expectedDrawingId: string, elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
   saveDrawingById: (id: string, elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
 
   // Refresh
@@ -814,19 +814,32 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
   }, [workspace]);
 
   const saveCurrentDrawing = useCallback(async (
+    expectedDrawingId: string,
     elements: unknown[],
     appState: Record<string, unknown>,
     files?: Record<string, unknown>
   ): Promise<void> => {
-    if (!activeDrawing) return;
+    // Race-guard against switch/import-during-save:
+    // The caller captured `elements` at a point when their active drawing was
+    // expectedDrawingId. If the active drawing has changed since (user switched
+    // or imported a file in the meantime), the elements they captured are now
+    // from a different canvas — writing them would merge B's content into A.
+    // Compare against the live ref, NOT the closure-captured activeDrawing
+    // (which would always match expected since both were captured together).
+    if (expectedDrawingId !== activeDrawingIdRef.current) {
+      return;
+    }
+    if (!activeDrawing || activeDrawing.id !== expectedDrawingId) return;
     // Safety: never save if this drawing is open in another tab (conflict)
-    if (isDrawingOpenedEarlierInOtherTab(activeDrawing.id)) return;
+    if (isDrawingOpenedEarlierInOtherTab(expectedDrawingId)) return;
 
     try {
       // Skip if DB has newer data than our in-memory copy — means something
       // external wrote to the drawing and our save would clobber it.
-      const fresh = await getDrawing(activeDrawing.id);
+      const fresh = await getDrawing(expectedDrawingId);
       if (fresh && fresh.updatedAt > (activeDrawing.updatedAt ?? 0)) return;
+      // Re-check after the await — active drawing may have changed during the DB read.
+      if (expectedDrawingId !== activeDrawingIdRef.current) return;
       // Guard: never overwrite non-empty DB content with an empty save.
       // Canvas may report [] briefly during mount / before a reload completes rendering,
       // and beforeunload-triggered saves in that window would erase the drawing.
@@ -842,7 +855,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
       if (files) {
         updateData.files = files;
       }
-      await updateDrawing(activeDrawing.id, updateData);
+      await updateDrawing(expectedDrawingId, updateData);
       // Update in-memory drawings so thumbnails & dialog reflect the latest canvas.
       // Saves are debounced (3s) at the caller, so the cost is bounded.
       const now = Date.now();
@@ -852,8 +865,8 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
         ...(files ? { files: files as Drawing['files'] } : {}),
         updatedAt: now,
       };
-      setDrawings((prev) => prev.map((d) => (d.id === activeDrawing.id ? { ...d, ...patch } : d)));
-      setActiveDrawing((prev) => (prev && prev.id === activeDrawing.id ? { ...prev, ...patch } : prev));
+      setDrawings((prev) => prev.map((d) => (d.id === expectedDrawingId ? { ...d, ...patch } : d)));
+      setActiveDrawing((prev) => (prev && prev.id === expectedDrawingId ? { ...prev, ...patch } : prev));
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to save drawing');
     }

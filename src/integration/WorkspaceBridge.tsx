@@ -93,7 +93,7 @@ export function WorkspaceBridge({
         // Add other persistent properties as needed
       };
 
-      await saveCurrentDrawing(elements as unknown[], persistentAppState, files);
+      await saveCurrentDrawing(activeDrawing.id, elements as unknown[], persistentAppState, files);
       onDrawingSave?.(activeDrawing.id);
     } catch (error) {
       console.error('[WorkspaceBridge] Failed to save drawing:', error);
