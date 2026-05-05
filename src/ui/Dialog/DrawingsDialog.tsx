@@ -724,24 +724,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             borderBottom: '1px solid var(--default-border-color, #e0e0e0)',
           }}
         >
-          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <h2 style={{ margin: 0, fontSize: '18px', fontWeight: 600 }}>
             {t.dialogTitle}
-            <span
-              style={{
-                fontSize: '10px',
-                fontWeight: 700,
-                letterSpacing: '0.5px',
-                padding: '2px 8px',
-                borderRadius: '10px',
-                backgroundColor: '#fff3cd',
-                color: '#856404',
-                border: '1px solid #ffc107',
-                textTransform: 'uppercase',
-              }}
-              title="Beta — funktionen är under utveckling och kan ändras"
-            >
-              BETA
-            </span>
           </h2>
           <button
             onClick={onClose}
