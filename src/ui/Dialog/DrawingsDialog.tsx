@@ -154,12 +154,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
         setSelectedId(null);
       }
       setIsRefreshing(true);
-      refreshDrawings().then(() => {
-        // Expand folders AFTER refresh so we have the latest folder list
-        if (isFirstOpen) {
-          setExpandedFolders(new Set(foldersRef.current.map((f) => f.id)));
-        }
-      }).finally(() => setIsRefreshing(false));
+      refreshDrawings().finally(() => setIsRefreshing(false));
     }
     prevOpenRef.current = open;
   }, [open, refreshDrawings]);
