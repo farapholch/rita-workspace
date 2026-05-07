@@ -1,4 +1,4 @@
-# Rita Workspace
+# Excalidrwa/Rita Workspace
 
 Multi-drawing workspace feature for Rita (Excalidraw fork based on B310-digital/excalidraw).
 
