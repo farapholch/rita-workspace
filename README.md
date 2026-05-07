@@ -1,6 +1,6 @@
 # Excalidraw/Rita Workspace
 
-Multi-drawing workspace feature for Rita (Excalidraw fork based on B310-digital/excalidraw).
+Multi-drawing workspace feature for Excalidraw/Rita (Excalidraw fork based on B310-digital/excalidraw).
 
 <img width="504" height="574" alt="image" src="https://github.com/user-attachments/assets/ada58a93-a664-4ab2-80e2-55354ae3a544" />
 
