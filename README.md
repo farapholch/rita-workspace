@@ -19,7 +19,7 @@ Multi-drawing workspace feature for Excalidraw/Rita (Excalidraw fork based on B3
 - **Multi-tab conflict detection** - Prevents data loss when same drawing is open in multiple tabs
 - **F5 preserves write ownership** - TAB_ID and openedAt persist in sessionStorage across page refresh
 - **Cross-tab refresh** - Creating/renaming/deleting drawings in one tab auto-refreshes other tabs via BroadcastChannel
-- **Workspace toggle** - Preview feature that can be enabled/disabled per browser tab
+- **Workspace toggle** - Can be enabled/disabled per browser tab
 - **Export/Import** - Export workspace as JSON, export all drawings as individual .excalidraw files, import .excalidraw files
 - **i18n support** - Swedish and English with automatic Excalidraw language sync
 - **Optimized loading** - DB pre-warming and parallel initialization
@@ -120,7 +120,7 @@ if (isDrawingOpenedEarlierInOtherTab(drawingId)) {
 - **localStorage** (`rita-workspace-tabs`) — persistent tab registry, backup for BroadcastChannel
 - **Stale tab cleanup** — on mount, pings other tabs via BroadcastChannel and removes entries that don't respond
 
-## Workspace Toggle (Preview Feature)
+## Workspace Toggle
 
 The workspace can be enabled/disabled per browser tab using `sessionStorage`:
 
