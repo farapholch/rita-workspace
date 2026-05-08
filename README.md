@@ -3,6 +3,10 @@
 [![npm version](https://img.shields.io/npm/v/rita-workspace.svg)](https://www.npmjs.com/package/rita-workspace)
 [![npm downloads](https://img.shields.io/npm/dm/rita-workspace.svg)](https://www.npmjs.com/package/rita-workspace)
 
+```bash
+npm install rita-workspace
+```
+
 Multi-drawing workspace feature for Excalidraw/Rita (Excalidraw fork based on B310-digital/excalidraw).
 
 <img width="504" height="574" alt="image" src="https://github.com/user-attachments/assets/ada58a93-a664-4ab2-80e2-55354ae3a544" />
