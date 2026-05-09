@@ -13,7 +13,7 @@ Multi-drawing workspace feature for Excalidraw/Rita (Excalidraw fork based on B3
 
 ## Quick Start
 
-Add to your main app file (e.g. `App.tsx`):
+Add to your main app file (e.g. `App.tsx`). For full integration (debounced save, conflict handling, toggle state), see [INTEGRATION.md](./docs/INTEGRATION.md).
 
 ```tsx
 import { WorkspaceProvider, useWorkspace, DrawingsDialog } from "rita-workspace";
