@@ -11,6 +11,40 @@ Multi-drawing workspace feature for Excalidraw/Rita (Excalidraw fork based on B3
 
 <img width="504" height="574" alt="image" src="https://github.com/user-attachments/assets/ada58a93-a664-4ab2-80e2-55354ae3a544" />
 
+## Quick Start
+
+```tsx
+import { WorkspaceProvider, useWorkspace, DrawingsDialog } from "rita-workspace";
+
+function App() {
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  return (
+    <WorkspaceProvider lang="en">
+      <button onClick={() => setDialogOpen(true)}>My Drawings</button>
+      <DrawingsDialog
+        open={dialogOpen}
+        onClose={() => setDialogOpen(false)}
+      />
+      <ExcalidrawWithWorkspace />
+    </WorkspaceProvider>
+  );
+}
+
+function ExcalidrawWithWorkspace() {
+  const { activeDrawing, saveCurrentDrawing } = useWorkspace();
+
+  return (
+    <Excalidraw
+      initialData={activeDrawing}
+      onChange={(elements, appState, files) => {
+        saveCurrentDrawing(elements, appState, files);
+      }}
+    />
+  );
+}
+```
+
 ## Features
 
 - **Multiple drawings** - Create and manage multiple drawings in one workspace
