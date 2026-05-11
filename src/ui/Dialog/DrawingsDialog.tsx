@@ -94,10 +94,16 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Folder UI state — persisted in localStorage so users come back to the
-  // same expanded/collapsed state across sessions / F5 / new tabs.
+  // Folder UI state — persisted in localStorage (when the
+  // 'rita-workspace-remember-folder-state' preference is on, which is the
+  // default) so users come back to the same expanded/collapsed state across
+  // sessions / F5 / new tabs.
   const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
     try {
+      // Skip restore if user has disabled the preference.
+      if (localStorage.getItem('rita-workspace-remember-folder-state') === 'false') {
+        return new Set();
+      }
       const raw = localStorage.getItem('rita-workspace-expanded-folders');
       if (raw) return new Set(JSON.parse(raw) as string[]);
     } catch { /* ignore corrupt JSON / quota errors */ }
@@ -130,6 +136,34 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           localStorage.setItem('rita-workspace-auto-start', 'true');
         } else {
           localStorage.removeItem('rita-workspace-auto-start');
+        }
+      } catch { /* ignore quota / private mode */ }
+      return next;
+    });
+  }, []);
+
+  // Remember-folder-state preference (persisted in localStorage). When disabled,
+  // the per-folder expanded state below is neither read nor written — folders
+  // always start collapsed at every dialog open.
+  // Default: true (existing behavior — remember per-folder state).
+  const [rememberFolderState, setRememberFolderState] = useState<boolean>(() => {
+    try {
+      // Stored as 'false' explicitly when off; absent / 'true' both mean on.
+      return localStorage.getItem('rita-workspace-remember-folder-state') !== 'false';
+    } catch {
+      return true;
+    }
+  });
+  const handleToggleRememberFolderState = useCallback(() => {
+    setRememberFolderState((prev) => {
+      const next = !prev;
+      try {
+        if (next) {
+          localStorage.removeItem('rita-workspace-remember-folder-state');
+        } else {
+          // Also clear stored folder state so disabling immediately collapses everything.
+          localStorage.setItem('rita-workspace-remember-folder-state', 'false');
+          localStorage.removeItem('rita-workspace-expanded-folders');
         }
       } catch { /* ignore quota / private mode */ }
       return next;
@@ -331,15 +365,17 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   }, []);
 
   // Persist expanded-folder state on every change so users come back to the
-  // same view across F5 / new tabs / browser restarts.
+  // same view across F5 / new tabs / browser restarts. Skipped when the user
+  // has turned off the remember-folder-state preference.
   useEffect(() => {
+    if (!rememberFolderState) return;
     try {
       localStorage.setItem(
         'rita-workspace-expanded-folders',
         JSON.stringify(Array.from(expandedFolders)),
       );
     } catch { /* ignore quota / private mode */ }
-  }, [expandedFolders]);
+  }, [expandedFolders, rememberFolderState]);
 
   const getLocale = () => {
     if (!effectiveLang) return 'en-US';
@@ -968,8 +1004,8 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
             />
           </div>
 
-          {/* === Settings: auto-start workspace mode === */}
-          <div style={{ padding: '0 20px 16px' }}>
+          {/* === Settings: auto-start workspace mode + remember folder state === */}
+          <div style={{ padding: '0 20px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <label
               style={{
                 display: 'flex',
@@ -992,6 +1028,31 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
                 <div style={{ fontSize: '14px', fontWeight: 500 }}>{t.autoStartLabel}</div>
                 <div style={{ fontSize: '12px', color: 'var(--text-secondary-color, #888)', marginTop: '2px' }}>
                   {t.autoStartDesc}
+                </div>
+              </div>
+            </label>
+            <label
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '10px 12px',
+                border: '1px solid var(--default-border-color, #e0e0e0)',
+                borderRadius: '8px',
+                cursor: 'pointer',
+                userSelect: 'none',
+              }}
+            >
+              <input
+                type="checkbox"
+                checked={rememberFolderState}
+                onChange={handleToggleRememberFolderState}
+                style={{ width: '16px', height: '16px', cursor: 'pointer', flexShrink: 0 }}
+              />
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: '14px', fontWeight: 500 }}>Kom ihåg utfällda mappar</div>
+                <div style={{ fontSize: '12px', color: 'var(--text-secondary-color, #888)', marginTop: '2px' }}>
+                  Behåller vilka mappar som är utfällda mellan sessioner. Om av: alla mappar startar minimerade.
                 </div>
               </div>
             </label>
