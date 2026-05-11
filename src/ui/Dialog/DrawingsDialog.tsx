@@ -94,8 +94,15 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  // Folder UI state
-  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(new Set());
+  // Folder UI state — persisted in localStorage so users come back to the
+  // same expanded/collapsed state across sessions / F5 / new tabs.
+  const [expandedFolders, setExpandedFolders] = useState<Set<string>>(() => {
+    try {
+      const raw = localStorage.getItem('rita-workspace-expanded-folders');
+      if (raw) return new Set(JSON.parse(raw) as string[]);
+    } catch { /* ignore corrupt JSON / quota errors */ }
+    return new Set();
+  });
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName] = useState('');
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
@@ -322,6 +329,17 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
       return next;
     });
   }, []);
+
+  // Persist expanded-folder state on every change so users come back to the
+  // same view across F5 / new tabs / browser restarts.
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'rita-workspace-expanded-folders',
+        JSON.stringify(Array.from(expandedFolders)),
+      );
+    } catch { /* ignore quota / private mode */ }
+  }, [expandedFolders]);
 
   const getLocale = () => {
     if (!effectiveLang) return 'en-US';
