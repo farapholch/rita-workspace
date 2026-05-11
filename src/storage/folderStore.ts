@@ -42,6 +42,22 @@ export async function renameFolder(id: string, name: string): Promise<Folder | u
   return updated;
 }
 
+/**
+ * Reassigns 'position' field on the given ordered folder ids (0..n-1).
+ * Folders not in `orderedIds` are left untouched.
+ */
+export async function reorderFolders(orderedIds: string[]): Promise<void> {
+  const db = await getDB();
+  const tx = db.transaction('folders', 'readwrite');
+  const store = tx.objectStore('folders');
+  for (let i = 0; i < orderedIds.length; i++) {
+    const existing = await store.get(orderedIds[i]);
+    if (!existing) continue;
+    await store.put({ ...existing, position: i });
+  }
+  await tx.done;
+}
+
 export async function deleteFolder(id: string): Promise<void> {
   const db = await getDB();
 

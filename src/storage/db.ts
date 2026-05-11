@@ -16,6 +16,8 @@ export interface Drawing {
 export interface Folder {
   id: string;
   name: string;
+  /** Manual sort position. Lower = earlier in list. Falls back to createdAt when unset. */
+  position?: number;
   createdAt: number;
   updatedAt: number;
 }

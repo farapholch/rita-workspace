@@ -19,6 +19,7 @@ import {
   createFolder as createFolderStore,
   renameFolder as renameFolderStore,
   deleteFolder as deleteFolderStore,
+  reorderFolders as reorderFoldersStore,
   warmDB,
 } from '../storage';
 import { getTranslations, type Translations } from '../i18n';
@@ -56,6 +57,9 @@ export interface WorkspaceContextValue {
   /** Re-numbers `position` for the given drawing IDs in order. Use the full ordered slice
    *  the user reordered (e.g. all root drawings, or all drawings in a folder). */
   reorderDrawings: (orderedIds: string[]) => Promise<void>;
+
+  /** Assigns position to the listed folder ids in given order. Pass full folder list. */
+  reorderFolders: (orderedIds: string[]) => Promise<void>;
 
   // For Excalidraw integration
   saveCurrentDrawing: (expectedDrawingId: string, elements: unknown[], appState: Record<string, unknown>, files?: Record<string, unknown>) => Promise<void>;
@@ -1214,6 +1218,20 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     }
   }, []);
 
+  const reorderFolders = useCallback(async (orderedIds: string[]): Promise<void> => {
+    const positionMap = new Map(orderedIds.map((id, idx) => [id, idx]));
+    setFolders((prev) => prev.map((f) =>
+      positionMap.has(f.id) ? { ...f, position: positionMap.get(f.id) } : f
+    ));
+    try {
+      await reorderFoldersStore(orderedIds);
+      broadcastWorkspaceChange();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reorder folders');
+      refreshDrawingsRef.current();
+    }
+  }, []);
+
   const value: WorkspaceContextValue = {
     workspace,
     drawings,
@@ -1234,6 +1252,7 @@ export function WorkspaceProvider({ children, lang = 'en' }: WorkspaceProviderPr
     deleteFolder,
     moveDrawingToFolder,
     reorderDrawings,
+    reorderFolders,
     saveCurrentDrawing,
     saveDrawingById,
     refreshDrawings,

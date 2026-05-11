@@ -74,6 +74,7 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     deleteFolder,
     moveDrawingToFolder,
     reorderDrawings,
+    reorderFolders,
     exportWorkspace,
     importWorkspace,
     exportDrawingAsExcalidraw,
@@ -176,6 +177,11 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   // Reorder drop indicator: drawing-id of the row we're hovering, plus 'before' or 'after' to show line position
   const [dropTargetDrawingId, setDropTargetDrawingId] = useState<string | null>(null);
   const [dropTargetPosition, setDropTargetPosition] = useState<'before' | 'after' | null>(null);
+
+  // Folder drag-and-drop state (for reordering folders)
+  const [draggingFolderId, setDraggingFolderId] = useState<string | null>(null);
+  const [folderDropTargetId, setFolderDropTargetId] = useState<string | null>(null);
+  const [folderDropPosition, setFolderDropPosition] = useState<'before' | 'after' | null>(null);
 
   // Dialog dragging state
   const [position, setPosition] = useState<{ x: number; y: number } | null>(null);
@@ -352,6 +358,30 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     reorderDrawings(ordered);
   }, [drawings, reorderDrawings, moveDrawingToFolder]);
 
+  // Folder reorder: drop `draggedFolderId` before/after `targetFolderId`.
+  const handleFolderReorderDrop = useCallback((
+    draggedFolderId: string,
+    targetFolderId: string,
+    pos: 'before' | 'after',
+  ) => {
+    if (draggedFolderId === targetFolderId) return;
+    const sorted = [...folders].sort((a, b) =>
+      (a.position ?? a.createdAt) - (b.position ?? b.createdAt)
+    );
+    const withoutDragged = sorted.filter((f) => f.id !== draggedFolderId);
+    const targetIdx = withoutDragged.findIndex((f) => f.id === targetFolderId);
+    if (targetIdx === -1) return;
+    const insertIdx = pos === 'before' ? targetIdx : targetIdx + 1;
+    const dragged = folders.find((f) => f.id === draggedFolderId);
+    if (!dragged) return;
+    const ordered = [
+      ...withoutDragged.slice(0, insertIdx),
+      dragged,
+      ...withoutDragged.slice(insertIdx),
+    ].map((f) => f.id);
+    reorderFolders(ordered);
+  }, [folders, reorderFolders]);
+
   const toggleFolder = useCallback((folderId: string) => {
     setExpandedFolders((prev) => {
       const next = new Set(prev);
@@ -420,9 +450,13 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     for (const folder of folders) {
       byFolder[folder.id] = sorted.filter((d) => d.folderId === folder.id);
     }
+    // Sort folders by manual `position` (drag-reorder), falling back to createdAt for unset.
+    const sortedFolders = [...folders].sort((a, b) =>
+      (a.position ?? a.createdAt) - (b.position ?? b.createdAt)
+    );
     const foldersFiltered = query
-      ? folders.filter((f) => f.name.toLowerCase().includes(query) || (byFolder[f.id] || []).length > 0)
-      : folders;
+      ? sortedFolders.filter((f) => f.name.toLowerCase().includes(query) || (byFolder[f.id] || []).length > 0)
+      : sortedFolders;
     return { rootDrawings: root, drawingsByFolder: byFolder, filteredFolders: foldersFiltered };
   }, [drawings, folders, searchQuery]);
 
@@ -658,11 +692,12 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
   const renderFolderGroup = (folder: Folder) => {
     const folderDrawings = drawingsByFolder[folder.id] || [];
     const isExpanded = expandedFolders.has(folder.id);
+    const isFolderDropTarget = folderDropTargetId === folder.id;
 
     return (
       <div
         key={folder.id}
-        style={{ marginBottom: '4px' }}
+        style={{ marginBottom: '4px', position: 'relative' }}
         onDragOver={(e) => {
           if (!draggingDrawingId) return;
           e.preventDefault();
@@ -685,16 +720,56 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
           }
         }}
       >
-        {/* Folder header */}
+        {/* Folder header — draggable för att kunna sortera om mappar */}
         <div
+          draggable={!editingFolderId && !confirmDeleteFolderId}
+          onDragStart={(e) => {
+            // Bara reorder om vi inte redan drar en ritning
+            if (draggingDrawingId) return;
+            setDraggingFolderId(folder.id);
+            e.dataTransfer.effectAllowed = 'move';
+          }}
+          onDragEnd={() => {
+            setDraggingFolderId(null);
+            setFolderDropTargetId(null);
+            setFolderDropPosition(null);
+          }}
+          onDragOver={(e) => {
+            // Folder-reorder gesture
+            if (!draggingFolderId || draggingFolderId === folder.id) return;
+            e.preventDefault();
+            e.stopPropagation();
+            e.dataTransfer.dropEffect = 'move';
+            const rect = e.currentTarget.getBoundingClientRect();
+            const isAbove = e.clientY < rect.top + rect.height / 2;
+            setFolderDropTargetId(folder.id);
+            setFolderDropPosition(isAbove ? 'before' : 'after');
+          }}
+          onDrop={(e) => {
+            if (draggingFolderId && draggingFolderId !== folder.id && folderDropPosition) {
+              e.preventDefault();
+              e.stopPropagation();
+              handleFolderReorderDrop(draggingFolderId, folder.id, folderDropPosition);
+              setDraggingFolderId(null);
+              setFolderDropTargetId(null);
+              setFolderDropPosition(null);
+            }
+          }}
           onClick={() => { toggleFolder(folder.id); setSelectedId(null); }}
           style={{
             padding: '8px 12px', display: 'flex', alignItems: 'center', gap: '8px',
-            borderRadius: '8px', cursor: 'pointer',
+            borderRadius: '8px',
+            cursor: draggingFolderId === folder.id ? 'grabbing' : 'pointer',
+            opacity: draggingFolderId === folder.id ? 0.5 : 1,
             backgroundColor: dropTargetFolderId === folder.id
               ? 'var(--color-primary-light, rgba(108, 99, 255, 0.2))'
               : 'var(--color-surface-mid, rgba(0, 0, 0, 0.03))',
             border: dropTargetFolderId === folder.id ? '2px dashed var(--color-primary, #6c63ff)' : '2px solid transparent',
+            boxShadow: isFolderDropTarget && folderDropPosition === 'before'
+              ? 'inset 0 3px 0 0 var(--color-primary, #6c63ff)'
+              : isFolderDropTarget && folderDropPosition === 'after'
+                ? 'inset 0 -3px 0 0 var(--color-primary, #6c63ff)'
+                : 'none',
             transition: 'background-color 0.15s, border-color 0.15s',
           }}
         >
