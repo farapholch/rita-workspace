@@ -217,3 +217,16 @@ In the [B310 fork](https://github.com/farapholch/Excalidraw-1):
 - Schema migrations are automatic at first import
 - Tab coordination via `BroadcastChannel("rita-workspace-tabs")` + `localStorage["rita-workspace-tabs"]` registry
 - Stale tabs (closed without cleanup) are pruned on next mount
+
+### Folder-expansion state shared between DrawingsDialog and AppFooter
+
+Two host-side UIs render the same folder list — `DrawingsDialog` (this package) and `AppFooter` (host-fork). They keep their expanded/collapsed state in sync via two localStorage keys:
+
+| Key | Written by | Read by |
+|-----|-----------|---------|
+| `rita-workspace-expanded-folders` | Both Dialog (on state change) and AppFooter (inside `toggleFolder`) | Both — lazy `useState` init on mount; Dialog re-reads on `open=true`; AppFooter re-reads when its panel opens |
+| `rita-workspace-remember-folder-state` | Dialog checkbox handler — `"false"` when off, removed when on | Both — gate writes/reads behind `!== "false"` |
+
+The dialog is persistently mounted in the host app (only `open` prop toggles visibility), so a plain `useState` lazy init isn't enough — Dialog has a `useEffect` on `[open]` that re-reads the key when the dialog opens. AppFooter does the equivalent on its own panel-open state. Skip either side's re-read and panel↔dialog sync breaks.
+
+If you add a third UI that lists folders, follow the same pattern: lazy init from localStorage, re-read when the UI becomes visible, and write through `toggleFolder` gated on `rita-workspace-remember-folder-state !== "false"`.

@@ -206,6 +206,21 @@ export const DrawingsDialog: React.FC<DrawingsDialogProps> = ({
     prevOpenRef.current = open;
   }, [open, refreshDrawings]);
 
+  // Re-sync expandedFolders från localStorage varje gång dialogen öppnas så
+  // ändringar gjorda i AppFooter-panelen reflekteras direkt här. Utan detta
+  // läses localStorage bara vid första mount (lazy useState init).
+  useEffect(() => {
+    if (!open) return;
+    try {
+      if (localStorage.getItem('rita-workspace-remember-folder-state') === 'false') {
+        setExpandedFolders(new Set());
+        return;
+      }
+      const raw = localStorage.getItem('rita-workspace-expanded-folders');
+      setExpandedFolders(raw ? new Set(JSON.parse(raw) as string[]) : new Set());
+    } catch { /* ignore corrupt JSON / quota errors */ }
+  }, [open]);
+
   useEffect(() => {
     if (creatingFolder && newFolderInputRef.current) {
       newFolderInputRef.current.focus();
