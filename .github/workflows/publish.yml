@@ -22,7 +22,9 @@ jobs:
 
       # Trusted Publishing (OIDC) kräver npm >= 11.5.1
       - name: Upgrade npm
-        run: npm install -g npm@latest
+        run: |
+          npm install -g npm@latest
+          echo "npm-version efter uppgradering: $(npm -v)"
 
       - name: Set version from tag
         run: |
@@ -35,7 +37,15 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Diagnostik: verifiera npm-version, registry och OIDC-env inför OIDC-publicering
+      - name: Diagnostik OIDC
+        run: |
+          echo "npm:      $(npm -v)"
+          echo "node:     $(node -v)"
+          echo "registry: $(npm config get registry)"
+          echo "ACTIONS_ID_TOKEN_REQUEST_URL satt: ${ACTIONS_ID_TOKEN_REQUEST_URL:+ja}"
+
       # Ingen NODE_AUTH_TOKEN behövs — autentisering sker via OIDC
       # (Trusted Publisher konfigurerad på npmjs.com). Provenance är automatiskt.
       - name: Publish to npm
-        run: npm publish --access public
+        run: npm publish --access public --loglevel verbose
