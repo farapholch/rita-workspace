@@ -13,10 +13,12 @@ jobs:
     steps:
       - uses: actions/checkout@v6
 
+      # Ingen registry-url: den får setup-node att skriva en .npmrc med
+      # _authToken-platshållare, vilket gör att npm försöker token-auth i
+      # stället för OIDC. Utan den autentiserar npm via Trusted Publishing.
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
-          registry-url: 'https://registry.npmjs.org'
 
       # Trusted Publishing (OIDC) kräver npm >= 11.5.1
       - name: Upgrade npm
