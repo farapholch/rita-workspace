@@ -18,6 +18,10 @@ jobs:
           node-version: '20'
           registry-url: 'https://registry.npmjs.org'
 
+      # Trusted Publishing (OIDC) kräver npm >= 11.5.1
+      - name: Upgrade npm
+        run: npm install -g npm@latest
+
       - name: Set version from tag
         run: |
           VERSION=${GITHUB_REF_NAME#v}
@@ -29,7 +33,7 @@ jobs:
       - name: Build
         run: npm run build
 
+      # Ingen NODE_AUTH_TOKEN behövs — autentisering sker via OIDC
+      # (Trusted Publisher konfigurerad på npmjs.com). Provenance är automatiskt.
       - name: Publish to npm
-        run: npm publish --provenance --access public
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
+        run: npm publish --access public
