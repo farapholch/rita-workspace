@@ -37,7 +37,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "https://github.com/farapholch/rita-workspace.git"
+    "url": "git+https://github.com/farapholch/excalidraw-rita-workspace.git"
   },
   "license": "MIT"
 }
